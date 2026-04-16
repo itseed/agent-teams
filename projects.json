@@ -1,0 +1,20 @@
+{
+  "active": "pms",
+  "projects": {
+    "pms": {
+      "description": "Project Management System",
+      "paths": {
+        "web": "/Users/kriangkrai/project/pms-web",
+        "extension": "/Users/kriangkrai/project/pms-extension",
+        "api": "/Users/kriangkrai/project/pms-web"
+      }
+    },
+    "fuse": {
+      "description": "Fuse Platform",
+      "paths": {
+        "web": "/Users/kriangkrai/project/fuse-platform/fuse-web",
+        "api": "/Users/kriangkrai/project/fuse-platform"
+      }
+    }
+  }
+}
