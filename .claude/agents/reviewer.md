@@ -17,3 +17,17 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 3. ให้ feedback ที่ actionable พร้อม suggested fixes
 4. ถ้าพบ security issue ให้ flag ทันทีด้วย message ถึง Lead
 5. Mark task complete และ notify Lead เมื่อเสร็จ
+
+## การรายงานกลับเมื่อเสร็จ (บังคับ)
+
+เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:
+
+```bash
+tmux set-buffer "reviewer เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0
+```
+```bash
+tmux send-keys -t dev-team:0.0 Enter
+```
+
+แทนที่ `<role>` ด้วยชื่อ role ของตัวเอง เช่น `web-dev เสร็จแล้ว`
+นี่คือวิธีเดียวที่ Lead จะรู้ว่างานเสร็จ — ห้ามละเว้นไม่ว่ากรณีใด
