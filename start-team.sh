@@ -20,7 +20,8 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<EOF
 Usage: $(basename "$0") [PROJECT_NAME]
 
-Spawn tmux session "$SESSION" with Lead + 7 agent panes.
+Spawn (or resume) tmux session "$SESSION" with Lead + 7 agent panes.
+If session already exists, prompts to resume — preserving all agent state.
 
   PROJECT_NAME   ชื่อ project ใน projects.json (ถ้าไม่ระบุใช้ field "active")
 
@@ -83,10 +84,21 @@ QA_PATH=$(first "$API_PATH" "$WEB_PATH" "$MOBILE_PATH")
 REVIEWER_PATH=$(first "$API_PATH" "$WEB_PATH" "$MOBILE_PATH")
 
 # ──────────────────────────────────────────────────────────────
-# Kill existing session if present
+# Resume or restart existing session
 # ──────────────────────────────────────────────────────────────
 if tmux has-session -t "$SESSION" 2>/dev/null; then
-  printf "Session '%s' already exists. Kill it? [y/N] " "$SESSION"
+  printf "Session '%s' already exists. Resume it? [Y/n] " "$SESSION"
+  read -r ans
+  if [[ "${ans:-Y}" != "n" && "${ans:-Y}" != "N" ]]; then
+    echo "→ Resuming session '$SESSION'..."
+    if [[ -z "${TMUX:-}" ]]; then
+      tmux attach-session -t "$SESSION"
+    else
+      tmux switch-client -t "$SESSION"
+    fi
+    exit 0
+  fi
+  printf "Kill existing session and start fresh? [y/N] "
   read -r ans
   [[ "$ans" == "y" || "$ans" == "Y" ]] || { echo "Aborted."; exit 0; }
   tmux kill-session -t "$SESSION"
@@ -100,7 +112,10 @@ echo "→ Spawning session '$SESSION'..."
 # 1. Create session with Lead pane
 tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$CLAUDE_CMD"
 
-# 2. Enable pane border + styling
+# 2. Enable mouse support
+tmux set-option -g -t "$SESSION" mouse on
+
+# 3. Enable pane border + styling
 #    - @role + @role_color = user options (program เขียนทับไม่ได้)
 #    - pane-border-style: สีเส้นกรอบเมื่อไม่ active
 #    - pane-active-border-style: สีเส้นกรอบเมื่อ active (highlight)
@@ -111,21 +126,21 @@ tmux set-option -w -t "$SESSION:0" pane-border-format " #[fg=#{@role_color},bold
 tmux set-option -p -t "$SESSION:0.0" @role "Lead"
 tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 
-# 3. Create 3 columns (Lead | middle | right)
+# 4. Create 3 columns (Lead | middle | right)
 tmux split-window -t "$SESSION:0.0" -h -c "$FRONTEND_PATH" "$CLAUDE_CMD"   # pane 1
 tmux split-window -t "$SESSION:0.1" -h -c "$DESIGNER_PATH" "$CLAUDE_CMD"   # pane 2
 tmux select-layout -t "$SESSION:0" even-horizontal
 
-# 4. Middle column: 4 equal rows (frontend, backend, mobile, devops)
+# 5. Middle column: 4 equal rows (frontend, backend, mobile, devops)
 tmux split-window -t "$SESSION:0.1" -v -l 75% -c "$BACKEND_PATH"       "$CLAUDE_CMD"   # pane 3
 tmux split-window -t "$SESSION:0.3" -v -l 67% -c "$MOBILE_AGENT_PATH"  "$CLAUDE_CMD"   # pane 4
 tmux split-window -t "$SESSION:0.4" -v -l 50% -c "$DEVOPS_PATH"        "$CLAUDE_CMD"   # pane 5
 
-# 5. Right column: 3 equal rows (designer, qa, reviewer)
+# 6. Right column: 3 equal rows (designer, qa, reviewer)
 tmux split-window -t "$SESSION:0.2" -v -l 67% -c "$QA_PATH"       "$CLAUDE_CMD"   # pane 6
 tmux split-window -t "$SESSION:0.6" -v -l 50% -c "$REVIEWER_PATH" "$CLAUDE_CMD"   # pane 7
 
-# 6. Set @role + @role_color per pane (user option — not affected by program output)
+# 7. Set @role + @role_color per pane (user option — not affected by program output)
 #    Dev roles = cool colors, Support roles = warm colors
 tmux set-option -p -t "$SESSION:0.1" @role "frontend"  ; tmux set-option -p -t "$SESSION:0.1" @role_color "cyan"
 tmux set-option -p -t "$SESSION:0.2" @role "designer"  ; tmux set-option -p -t "$SESSION:0.2" @role_color "colour211"
@@ -135,7 +150,7 @@ tmux set-option -p -t "$SESSION:0.5" @role "devops"    ; tmux set-option -p -t "
 tmux set-option -p -t "$SESSION:0.6" @role "qa"        ; tmux set-option -p -t "$SESSION:0.6" @role_color "colour208"
 tmux set-option -p -t "$SESSION:0.7" @role "reviewer"  ; tmux set-option -p -t "$SESSION:0.7" @role_color "red"
 
-# 7. Focus Lead
+# 8. Focus Lead
 tmux select-pane -t "$SESSION:0.0"
 
 # ──────────────────────────────────────────────────────────────

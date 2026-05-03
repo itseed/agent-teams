@@ -1,1 +1,5 @@
 .superpowers/
+.claude/projects/
+.claude/settings.local.json
+projects.json
+docs/

@@ -1,0 +1,20 @@
+{
+  "active": "myproject",
+  "projects": {
+    "myproject": {
+      "description": "My Project",
+      "paths": {
+        "web": "/absolute/path/to/web",
+        "api": "/absolute/path/to/api",
+        "mobile": "/absolute/path/to/mobile"
+      }
+    },
+    "another-project": {
+      "description": "Another Project",
+      "paths": {
+        "web": "/absolute/path/to/another/web",
+        "api": "/absolute/path/to/another/api"
+      }
+    }
+  }
+}
