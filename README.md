@@ -132,21 +132,24 @@ Agent definitions อยู่ใน [.claude/agents/](.claude/agents/)
 | [jq](https://jqlang.github.io/jq/) | `brew install jq` |
 | [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | `npm install -g @anthropic-ai/claude-code` แล้ว `claude login` |
 
+หรือรัน `./install.sh` เพื่อตรวจและติดตั้ง dependencies อัตโนมัติ
+
 ## Quick start
 
 ```bash
-# Clone repo
 git clone https://github.com/itseed/agent-teams.git
 cd agent-teams
+./install.sh
 ```
 
-### ลงทะเบียน project
+`install.sh` จะ:
+- ตรวจและติดตั้ง dependencies (tmux, jq, Claude CLI)
+- สร้าง projects.json จาก example
+- ตั้งค่า Snyk (optional)
 
-`projects.json` ไม่ได้อยู่ใน repo เพราะมี absolute paths ของแต่ละเครื่อง — ให้ copy จาก example แล้วแก้ paths ให้ตรงกับเครื่องของคุณ:
+### หลัง install.sh รัน — แก้ paths ใน projects.json ให้ตรงกับเครื่องของคุณ
 
-```bash
-cp projects.json.example projects.json
-```
+`projects.json` ไม่ได้อยู่ใน repo เพราะมี absolute paths ของแต่ละเครื่อง — `install.sh` สร้างไฟล์นี้ให้แล้ว แต่ต้องแก้ paths ให้ตรงกับเครื่องของคุณ:
 
 แก้ `projects.json`:
 
@@ -235,6 +238,7 @@ agent-teams/
 ├── README.md                  # ไฟล์นี้
 ├── projects.json.example      # template — copy เป็น projects.json แล้วแก้ paths
 ├── projects.json              # (gitignored) paths เฉพาะเครื่องของคุณ
+├── install.sh                 # one-command setup (ตรวจ deps, สร้าง projects.json, ตั้งค่า Snyk)
 ├── start-team.sh              # spawn tmux session + 8 panes
 ├── stop-team.sh               # kill session
 └── .claude/
