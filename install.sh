@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG_MANAGER=""
 
 # Status tracking (used by verify())
+# shellcheck disable=SC2034  # forward-declared globals, used by functions added in later tasks
 TMUX_OK=false
 JQ_OK=false
 CLAUDE_OK=false
@@ -32,7 +33,7 @@ check_os() {
         PKG_MANAGER="apt-get"
       else
         PKG_MANAGER=""
-        echo "  ℹ apt-get not found — install deps manually if needed"
+        echo "  ℹ No supported package manager found (brew/apt-get) — install deps manually if needed"
       fi
       ;;
     *)
