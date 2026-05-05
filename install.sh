@@ -163,6 +163,101 @@ setup_projects() {
   $any_found && SCRIPTS_OK=true
 }
 
+_patch_reviewer() {
+  local reviewer="$SCRIPT_DIR/.claude/agents/reviewer.md"
+
+  if [[ ! -f "$reviewer" ]]; then
+    echo "  ✗ .claude/agents/reviewer.md not found — skipping patch"
+    return 0
+  fi
+
+  if grep -q "snyk test" "$reviewer"; then
+    echo "  → reviewer.md already has Snyk workflow"
+    return 0
+  fi
+
+  python3 - "$reviewer" <<'PYEOF'
+import sys, re
+
+path = sys.argv[1]
+snyk_block = (
+    "2. **รัน Snyk scan ก่อน manual review เสมอ**"
+    " (ถ้า working directory มี package.json/requirements.txt/etc.)\n"
+    "   ```bash\n"
+    "   snyk test --severity-threshold=high 2>&1 | head -60\n"
+    "   ```\n"
+    "   - ถ้าพบ **critical/high** → flag ทันที ก่อน review ต่อ\n"
+    "   - แนบ snyk output สรุปไว้ใน review report\n"
+)
+content = open(path).read()
+new_content = re.sub(
+    r'(1\. อ่าน task จาก shared task list\n)',
+    lambda m: m.group(0) + snyk_block + "\n",
+    content, count=1
+)
+if new_content == content:
+    sys.stderr.write("  ✗ Could not find insertion point in reviewer.md\n")
+    sys.exit(1)
+open(path, "w").write(new_content)
+print("  ✓ Injected Snyk workflow into .claude/agents/reviewer.md")
+PYEOF
+}
+
+setup_snyk() {
+  echo ""
+  printf "Set up Snyk for security scanning? [y/N] "
+  read -r ans
+  [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]] && return 0
+
+  local settings="$HOME/.claude/settings.json"
+
+  # Check if already configured
+  if [[ -f "$settings" ]] && jq -e '.env.SNYK_TOKEN' "$settings" >/dev/null 2>&1; then
+    echo "  → SNYK_TOKEN already configured in ~/.claude/settings.json"
+    SNYK_CONFIGURED=true
+    _patch_reviewer
+    return 0
+  fi
+
+  echo ""
+  echo "  Get your token from one of these:"
+  echo "    1. Run:   snyk config get api"
+  echo "    2. Visit: https://app.snyk.io/account → Auth Token"
+  echo ""
+
+  local token=""
+  local attempts=0
+  while [[ -z "$token" && $attempts -lt 2 ]]; do
+    printf "  Paste token: "
+    read -rs token
+    echo ""
+    (( attempts++ )) || true
+    if [[ -z "$token" && $attempts -lt 2 ]]; then
+      echo "  ✗ Token cannot be empty, try again"
+    fi
+  done
+
+  if [[ -z "$token" ]]; then
+    echo "  → Skipping Snyk setup"
+    return 0
+  fi
+
+  # Merge token into ~/.claude/settings.json
+  if [[ ! -f "$settings" ]]; then
+    mkdir -p "$(dirname "$settings")"
+    echo '{}' | jq --arg t "$token" '.env.SNYK_TOKEN = $t' > "$settings"
+  else
+    local tmp
+    tmp=$(mktemp)
+    jq --arg t "$token" '.env.SNYK_TOKEN = $t' "$settings" > "$tmp" && mv "$tmp" "$settings"
+    rm -f "$tmp"
+  fi
+  echo "  ✓ SNYK_TOKEN saved to ~/.claude/settings.json"
+
+  _patch_reviewer
+  SNYK_CONFIGURED=true
+}
+
 main() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -172,6 +267,7 @@ main() {
   check_deps
   setup_claude
   setup_projects
+  setup_snyk
 }
 
 main "$@"
