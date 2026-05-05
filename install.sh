@@ -171,6 +171,11 @@ _patch_reviewer() {
     return 0
   fi
 
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "  ✗ python3 not found — reviewer.md not patched"
+    return 0
+  fi
+
   if grep -q "snyk test" "$reviewer"; then
     echo "  → reviewer.md already has Snyk workflow"
     return 0
@@ -208,6 +213,11 @@ setup_snyk() {
   printf "Set up Snyk for security scanning? [y/N] "
   read -r ans
   [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]] && return 0
+
+  if ! $JQ_OK; then
+    echo "  → jq is required for Snyk setup — skipping"
+    return 0
+  fi
 
   local settings="$HOME/.claude/settings.json"
 

@@ -13,16 +13,10 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 
 ## วิธีทำงาน
 1. อ่าน task จาก shared task list
-2. **รัน Snyk scan ก่อน manual review เสมอ** (ถ้า working directory มี package.json/requirements.txt/etc.)
-   ```bash
-   snyk test --severity-threshold=high 2>&1 | head -60
-   ```
-   - ถ้าพบ **critical/high** → flag ทันที ก่อน review ต่อ
-   - แนบ snyk output สรุปไว้ใน review report
-3. Review code ที่ teammate คนอื่นทำเสร็จแล้ว
-4. ให้ feedback ที่ actionable พร้อม suggested fixes
-5. ถ้าพบ security issue ให้ flag ทันทีด้วย message ถึง Lead
-6. Mark task complete และ notify Lead เมื่อเสร็จ
+2. Review code ที่ teammate คนอื่นทำเสร็จแล้ว
+3. ให้ feedback ที่ actionable พร้อม suggested fixes
+4. ถ้าพบ security issue ให้ flag ทันทีด้วย message ถึง Lead
+5. Mark task complete และ notify Lead เมื่อเสร็จ
 
 ## การรายงานกลับเมื่อเสร็จ (บังคับ)
 
