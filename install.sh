@@ -129,6 +129,40 @@ setup_claude() {
   fi
 }
 
+setup_projects() {
+  echo ""
+  echo "Setting up projects.json..."
+
+  local projects_file="$SCRIPT_DIR/projects.json"
+  local example_file="$SCRIPT_DIR/projects.json.example"
+
+  if [[ -f "$projects_file" ]]; then
+    echo "  ✓ projects.json already exists, skipping"
+    PROJECTS_OK=true
+  elif [[ ! -f "$example_file" ]]; then
+    echo "  ✗ projects.json.example not found — run from repo root?"
+    return 1
+  else
+    cp "$example_file" "$projects_file"
+    echo "  ✓ Copied projects.json.example → projects.json"
+    echo "  → Edit it to add your project paths:"
+    echo "    nano $projects_file"
+    PROJECTS_OK=true
+  fi
+
+  echo ""
+  echo "Making scripts executable..."
+  local any_found=false
+  for script in start-team.sh stop-team.sh; do
+    if [[ -f "$SCRIPT_DIR/$script" ]]; then
+      chmod +x "$SCRIPT_DIR/$script"
+      echo "  ✓ $script"
+      any_found=true
+    fi
+  done
+  $any_found && SCRIPTS_OK=true
+}
+
 main() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -137,6 +171,7 @@ main() {
   check_os
   check_deps
   setup_claude
+  setup_projects
 }
 
 main "$@"
