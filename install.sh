@@ -43,13 +43,65 @@ check_os() {
   esac
 }
 
+check_deps() {
+  echo ""
+  echo "Checking dependencies..."
+  local missing=()
+
+  if command -v tmux >/dev/null 2>&1; then
+    echo "  ✓ tmux $(tmux -V | awk '{print $2}')"
+    TMUX_OK=true
+  else
+    missing+=("tmux")
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    echo "  ✓ jq $(jq --version)"
+    JQ_OK=true
+  else
+    missing+=("jq")
+  fi
+
+  [[ ${#missing[@]} -eq 0 ]] && return 0
+
+  echo "  ✗ Missing: ${missing[*]}"
+
+  if [[ -z "$PKG_MANAGER" ]]; then
+    echo "  → Install manually: ${missing[*]}"
+    return 0
+  fi
+
+  printf "  Install missing deps with %s? [y/N] " "$PKG_MANAGER"
+  read -r ans
+  if [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]]; then
+    echo "  → Skipped. Install manually: ${missing[*]}"
+    return 0
+  fi
+
+  for pkg in "${missing[@]}"; do
+    echo "  → Installing $pkg..."
+    if [[ "$PKG_MANAGER" == "brew" ]]; then
+      brew install "$pkg"
+    else
+      sudo apt-get install -y "$pkg"
+    fi
+    if command -v "$pkg" >/dev/null 2>&1; then
+      [[ "$pkg" == "tmux" ]] && TMUX_OK=true
+      [[ "$pkg" == "jq" ]] && JQ_OK=true
+      echo "  ✓ $pkg installed"
+    else
+      echo "  ✗ $pkg install failed — install manually"
+    fi
+  done
+}
+
 main() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "   agent-teams installer"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   check_os
-  echo "  PKG_MANAGER=${PKG_MANAGER:-none}"
+  check_deps
 }
 
 main "$@"
