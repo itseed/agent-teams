@@ -2,4 +2,8 @@
 .claude/projects/
 .claude/settings.local.json
 projects.json
-docs/
+docs/*
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
+!docs/superpowers/plans/
