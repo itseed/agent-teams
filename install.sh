@@ -258,6 +258,45 @@ setup_snyk() {
   SNYK_CONFIGURED=true
 }
 
+verify() {
+  local _s
+  _s() {
+    local ok=$1 label=$2 detail=${3:-}
+    if $ok; then
+      echo "  ✓ $label${detail:+  ($detail)}"
+    else
+      echo "  ✗ $label"
+    fi
+  }
+
+  echo ""
+  echo "────────────────────────────────"
+  echo " Setup Summary"
+  echo "────────────────────────────────"
+  _s "$TMUX_OK"     "tmux"               "$(command -v tmux >/dev/null 2>&1 && tmux -V | awk '{print $2}' || true)"
+  _s "$JQ_OK"       "jq"                 "$(command -v jq >/dev/null 2>&1 && jq --version | sed 's/^jq-//' || true)"
+  _s "$CLAUDE_OK"   "claude CLI"
+  _s "$PROJECTS_OK" "projects.json"
+  _s "$SCRIPTS_OK"  "scripts executable"
+
+  if $SNYK_CONFIGURED; then
+    echo "  ✓ snyk token configured"
+  else
+    echo "  ○ snyk (skipped)"
+  fi
+
+  echo "────────────────────────────────"
+
+  if $TMUX_OK && $JQ_OK && $CLAUDE_OK && $PROJECTS_OK; then
+    echo ""
+    echo "  Ready! Run: ./start-team.sh"
+  else
+    echo ""
+    echo "  ⚠ Some items need attention — see above"
+  fi
+  echo ""
+}
+
 main() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -268,6 +307,7 @@ main() {
   setup_claude
   setup_projects
   setup_snyk
+  verify
 }
 
 main "$@"
