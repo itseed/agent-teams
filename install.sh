@@ -56,7 +56,7 @@ check_deps() {
   fi
 
   if command -v jq >/dev/null 2>&1; then
-    echo "  ✓ jq $(jq --version)"
+    echo "  ✓ jq $(jq --version | sed 's/^jq-//')"
     JQ_OK=true
   else
     missing+=("jq")
