@@ -95,6 +95,40 @@ check_deps() {
   done
 }
 
+setup_claude() {
+  echo ""
+  echo "Checking Claude CLI..."
+
+  if command -v claude >/dev/null 2>&1; then
+    echo "  ✓ claude found"
+    CLAUDE_OK=true
+    return 0
+  fi
+
+  echo "  ✗ claude not found"
+  printf "  Install it now? (npm install -g @anthropic-ai/claude-code) [y/N] "
+  read -r ans
+
+  if [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]]; then
+    echo "  → Install manually: https://claude.ai/code"
+    return 0
+  fi
+
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "  ✗ npm not found — install Node.js first: https://nodejs.org"
+    return 0
+  fi
+
+  npm install -g @anthropic-ai/claude-code
+
+  if command -v claude >/dev/null 2>&1; then
+    echo "  ✓ claude installed"
+    CLAUDE_OK=true
+  else
+    echo "  ✗ Installation may have failed — check npm output above"
+  fi
+}
+
 main() {
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -102,6 +136,7 @@ main() {
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   check_os
   check_deps
+  setup_claude
 }
 
 main "$@"
