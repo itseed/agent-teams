@@ -107,7 +107,17 @@ tmux set-option -p -t dev-team:0.7 @role "reviewer"  ; tmux set-option -p -t dev
 
 ### วิธีส่งงานให้ teammate
 
-ต้องรัน **2 Bash tool call แยกกัน** เสมอ — ห้ามรวมใน `&&` เดียวกัน:
+ต้องรัน **2 Bash tool call แยกกัน** เสมอ — ห้ามรวมใน `&&` เดียวกัน
+
+**สำคัญมาก: ทุก task ที่ส่งให้ pane ต้องขึ้นต้นด้วย role declaration เสมอ** เพราะ pane รัน Claude ใน `agent-teams` directory และอ่าน CLAUDE.md ของ Lead → ต้องบอก role ให้ชัดในตัว prompt:
+
+```
+[ROLE: backend developer — ทำงานเองโดยตรง ห้าม spawn subagent]
+
+<task content>
+```
+
+หรือส่งให้ปานอ่านไฟล์ที่มี role declaration ที่หัวไฟล์เสมอ
 
 **คำสั่งที่ 1 — paste prompt:**
 ```bash
@@ -184,6 +194,11 @@ tmux capture-pane -t dev-team:0.1 -p | tail -20
 - ทุก prompt ต้องมีคำสั่ง report กลับเสมอ (มีอยู่แล้วใน CLAUDE.md แต่ต้อง reinforce)
 - ถ้า agent เสร็จแต่ไม่แจ้ง ให้ตรวจสอบด้วย `tmux capture-pane -t dev-team:0.X -p | tail -20`
 - ถ้า agent เสร็จแล้วให้ Lead commit & push แทนได้เลย ไม่ต้องรอ
+
+### Agent ทำตัวเป็น Lead แทนที่จะทำงานเอง
+- สาเหตุ: pane อ่าน CLAUDE.md ของ Lead ใน `agent-teams` directory → คิดว่าตัวเองเป็น Lead
+- ทางแก้: task ทุก prompt ต้องมี role declaration `[ROLE: xxx — ทำงานเองโดยตรง ห้าม spawn]` ที่หัวเสมอ
+- ถ้า pane spawn subagent แล้ว: ให้รันคำสั่งใหม่ใน pane นั้นโดยตรงพร้อม role override
 
 ### tmux prompt ค้างใน input box
 - บางครั้ง `paste-buffer` วาง prompt ลงไปแต่ไม่ submit — ให้เช็กด้วย capture-pane

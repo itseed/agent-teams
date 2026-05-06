@@ -65,6 +65,7 @@ WEB_PATH=$(get_path "web")
 API_PATH=$(get_path "api")
 MOBILE_PATH=$(get_path "mobile")
 EXTENSION_PATH=$(get_path "extension")
+ROOT_PATH=$(get_path "root")   # monorepo root — ใช้กับ devops/qa/reviewer
 
 # First non-empty among candidates, fallback to SCRIPT_DIR
 first() {
@@ -77,11 +78,11 @@ first() {
 LEAD_PATH="$SCRIPT_DIR"
 FRONTEND_PATH=$(first "$WEB_PATH" "$EXTENSION_PATH" "$API_PATH")
 BACKEND_PATH=$(first "$API_PATH" "$WEB_PATH")
-MOBILE_AGENT_PATH=$(first "$MOBILE_PATH" "$API_PATH" "$WEB_PATH")
-DEVOPS_PATH=$(first "$API_PATH" "$WEB_PATH" "$MOBILE_PATH")
+MOBILE_AGENT_PATH=$(first "$MOBILE_PATH" "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
+DEVOPS_PATH=$(first "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
 DESIGNER_PATH=$(first "$WEB_PATH" "$MOBILE_PATH" "$API_PATH")
-QA_PATH=$(first "$API_PATH" "$WEB_PATH" "$MOBILE_PATH")
-REVIEWER_PATH=$(first "$API_PATH" "$WEB_PATH" "$MOBILE_PATH")
+QA_PATH=$(first "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
+REVIEWER_PATH=$(first "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
 
 # ──────────────────────────────────────────────────────────────
 # Resume or restart existing session
@@ -150,7 +151,33 @@ tmux set-option -p -t "$SESSION:0.5" @role "devops"    ; tmux set-option -p -t "
 tmux set-option -p -t "$SESSION:0.6" @role "qa"        ; tmux set-option -p -t "$SESSION:0.6" @role_color "colour208"
 tmux set-option -p -t "$SESSION:0.7" @role "reviewer"  ; tmux set-option -p -t "$SESSION:0.7" @role_color "red"
 
-# 8. Focus Lead
+# 8. Inject agent role definition as first message to each teammate pane
+#    ทำให้ agent รู้ role ของตัวเองตั้งแต่แรก — ไม่ต้องพึ่ง CLAUDE.md จาก project
+#    portable: อ่านจาก .claude/agents/ ที่อยู่ใน repo นี้เสมอ
+inject_role() {
+  local pane="$1"
+  local agent_file="$SCRIPT_DIR/.claude/agents/$2.md"
+  [[ -f "$agent_file" ]] || return
+
+  # Wait for Claude prompt to appear (max 30s)
+  local i=0
+  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "bypass permissions|❯|>"; do
+    sleep 1; ((i++)); [[ $i -gt 30 ]] && break
+  done
+
+  tmux set-buffer "$(cat "$agent_file")" && tmux paste-buffer -t "$pane"
+  tmux send-keys -t "$pane" Enter
+}
+
+inject_role "$SESSION:0.1" "frontend"
+inject_role "$SESSION:0.2" "designer"
+inject_role "$SESSION:0.3" "backend"
+inject_role "$SESSION:0.4" "mobile"
+inject_role "$SESSION:0.5" "devops"
+inject_role "$SESSION:0.6" "qa"
+inject_role "$SESSION:0.7" "reviewer"
+
+# 9. Focus Lead
 tmux select-pane -t "$SESSION:0.0"
 
 # ──────────────────────────────────────────────────────────────
