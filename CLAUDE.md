@@ -3,11 +3,11 @@
 คุณเป็น Lead ของ software development team ที่มี specialist teammates:
 - **frontend** — React, Next.js, TypeScript, browser extension
 - **backend** — REST API, GraphQL, database, business logic
-- **mobile** — React Native, iOS/Android (รองรับทั้ง Expo และ pure RN — เช็ค project convention ก่อน)
+- **mobile** — React Native, Capacitor.js, iOS/Android (pure RN หรือ Capacitor — เช็ค project convention ก่อน)
 - **devops** — CI/CD, Docker, deployment, infrastructure, env config
-- **designer** — Figma-to-code, design system, UX review, a11y
-- **qa** — Testing (unit, integration, e2e, edge cases)
-- **reviewer** — Code review (standards, security, performance)
+- **designer** — design spec, design tokens, UX review, a11y (ไม่เขียน feature code)
+- **qa** — Integration tests, e2e tests, edge cases, regression
+- **reviewer** — Code review (quality, security, code-level performance)
 
 Lead ไม่จำเป็นต้อง spawn ทุกตัวทุกครั้ง — spawn เฉพาะที่จำเป็นต่องานนั้นๆ
 
@@ -73,27 +73,28 @@ tmux set-option -p -t dev-team:0.0 @role "Lead"
 tmux set-option -p -t dev-team:0.0 @role_color "yellow"
 
 # 2. สร้าง 3 columns (Lead | middle | right)
-tmux split-window -t dev-team:0.0 -h -c "<frontend-path>" "claude --dangerously-skip-permissions; read"   # pane 1 (middle col)
-tmux split-window -t dev-team:0.1 -h -c "<designer-path>" "claude --dangerously-skip-permissions; read"   # pane 2 (right col)
+# agents เริ่มใน /tmp/agent-<role>/ เพื่อให้ Claude อ่าน specialist CLAUDE.md ก่อนรับงาน
+tmux split-window -t dev-team:0.0 -h -c "/tmp/agent-frontend" "claude --dangerously-skip-permissions; read"   # pane 1 (middle col)
+tmux split-window -t dev-team:0.1 -h -c "/tmp/agent-designer" "claude --dangerously-skip-permissions; read"   # pane 2 (right col)
 tmux select-layout -t dev-team:0 even-horizontal
 
 # 3. แบ่ง middle column (pane 0.1) เป็น 4 แถว: frontend, backend, mobile, devops
-tmux split-window -t dev-team:0.1 -v -c "<backend-path>" "claude --dangerously-skip-permissions; read"   # pane 3
-tmux split-window -t dev-team:0.3 -v -c "<mobile-path>"  "claude --dangerously-skip-permissions; read"   # pane 4
-tmux split-window -t dev-team:0.4 -v -c "<project-path>" "claude --dangerously-skip-permissions; read"   # pane 5 (devops)
+tmux split-window -t dev-team:0.1 -v -c "/tmp/agent-backend" "claude --dangerously-skip-permissions; read"   # pane 3
+tmux split-window -t dev-team:0.3 -v -c "/tmp/agent-mobile"  "claude --dangerously-skip-permissions; read"   # pane 4
+tmux split-window -t dev-team:0.4 -v -c "/tmp/agent-devops"  "claude --dangerously-skip-permissions; read"   # pane 5
 
 # 4. แบ่ง right column (pane 0.2) เป็น 3 แถว: designer, qa, reviewer
-tmux split-window -t dev-team:0.2 -v -c "<project-path>" "claude --dangerously-skip-permissions; read"   # pane 6 (qa)
-tmux split-window -t dev-team:0.6 -v -c "<project-path>" "claude --dangerously-skip-permissions; read"   # pane 7 (reviewer)
+tmux split-window -t dev-team:0.2 -v -c "/tmp/agent-qa"       "claude --dangerously-skip-permissions; read"   # pane 6
+tmux split-window -t dev-team:0.6 -v -c "/tmp/agent-reviewer" "claude --dangerously-skip-permissions; read"   # pane 7
 
 # 5. ตั้ง @role + @role_color per pane (ใช้ user option แทน -T เพื่อไม่ให้ claude เขียนทับ)
-tmux set-option -p -t dev-team:0.1 @role "frontend"  ; tmux set-option -p -t dev-team:0.1 @role_color "cyan"
-tmux set-option -p -t dev-team:0.2 @role "designer"  ; tmux set-option -p -t dev-team:0.2 @role_color "colour211"
-tmux set-option -p -t dev-team:0.3 @role "backend"   ; tmux set-option -p -t dev-team:0.3 @role_color "blue"
-tmux set-option -p -t dev-team:0.4 @role "mobile"    ; tmux set-option -p -t dev-team:0.4 @role_color "magenta"
-tmux set-option -p -t dev-team:0.5 @role "devops"    ; tmux set-option -p -t dev-team:0.5 @role_color "green"
-tmux set-option -p -t dev-team:0.6 @role "qa"        ; tmux set-option -p -t dev-team:0.6 @role_color "colour208"
-tmux set-option -p -t dev-team:0.7 @role "reviewer"  ; tmux set-option -p -t dev-team:0.7 @role_color "red"
+tmux set-option -p -t dev-team:0.1 @role "Frontend"  ; tmux set-option -p -t dev-team:0.1 @role_color "cyan"
+tmux set-option -p -t dev-team:0.2 @role "Designer"  ; tmux set-option -p -t dev-team:0.2 @role_color "colour211"
+tmux set-option -p -t dev-team:0.3 @role "Backend"   ; tmux set-option -p -t dev-team:0.3 @role_color "blue"
+tmux set-option -p -t dev-team:0.4 @role "Mobile"    ; tmux set-option -p -t dev-team:0.4 @role_color "magenta"
+tmux set-option -p -t dev-team:0.5 @role "DevOps"    ; tmux set-option -p -t dev-team:0.5 @role_color "green"
+tmux set-option -p -t dev-team:0.6 @role "QA"        ; tmux set-option -p -t dev-team:0.6 @role_color "colour208"
+tmux set-option -p -t dev-team:0.7 @role "Reviewer"  ; tmux set-option -p -t dev-team:0.7 @role_color "red"
 ```
 
 ### Convention
@@ -103,13 +104,13 @@ tmux set-option -p -t dev-team:0.7 @role "reviewer"  ; tmux set-option -p -t dev
 | Session name | `dev-team` |
 | Lead pane | `dev-team:0.0` (ซ้าย) |
 | Teammate panes | `dev-team:0.1` ถึง `dev-team:0.N` (ขวา) |
-| Pane title | ชื่อ role ตรงๆ เช่น `frontend`, `backend`, `mobile`, `devops`, `designer`, `qa`, `reviewer` |
+| Pane title | ชื่อ role ขึ้นต้นตัวพิมพ์ใหญ่ เช่น `Frontend`, `Backend`, `Mobile`, `DevOps`, `Designer`, `QA`, `Reviewer` |
 
 ### วิธีส่งงานให้ teammate
 
 ต้องรัน **2 Bash tool call แยกกัน** เสมอ — ห้ามรวมใน `&&` เดียวกัน
 
-**สำคัญมาก: ทุก task ที่ส่งให้ pane ต้องขึ้นต้นด้วย role declaration เสมอ** เพราะ pane รัน Claude ใน `agent-teams` directory และอ่าน CLAUDE.md ของ Lead → ต้องบอก role ให้ชัดในตัว prompt:
+**แนะนำ: ขึ้นต้น task ด้วย role declaration เพื่อ reinforce** (agent มี CLAUDE.md ของตัวเองแล้ว แต่การระบุซ้ำช่วยให้ชัดขึ้น):
 
 ```
 [ROLE: backend developer — ทำงานเองโดยตรง ห้าม spawn subagent]
@@ -117,31 +118,18 @@ tmux set-option -p -t dev-team:0.7 @role "reviewer"  ; tmux set-option -p -t dev
 <task content>
 ```
 
-หรือส่งให้ปานอ่านไฟล์ที่มี role declaration ที่หัวไฟล์เสมอ
-
-**คำสั่งที่ 1 — paste prompt:**
+**คำสั่งเดียว — paste + submit:**
 ```bash
-tmux set-buffer "prompt ที่ต้องการ" && tmux paste-buffer -t dev-team:0.1
+tmux set-buffer "prompt ที่ต้องการ" && tmux paste-buffer -t dev-team:0.1 && sleep 0.5 && tmux send-keys -t dev-team:0.1 Enter
 ```
 
-**คำสั่งที่ 2 — กด Enter (รันหลังจากคำสั่งที่ 1 เสร็จเท่านั้น):**
-```bash
-tmux send-keys -t dev-team:0.1 Enter
-```
-
-**สำคัญ**:
-- ต้องแยกเป็น 2 Bash call เพราะ `paste-buffer` อาจยังไม่เสร็จก่อน `send-keys` รัน
-- `tmux set-buffer` — เขียน prompt ลง tmux clipboard
-- `tmux paste-buffer -t pane` — paste เข้า input box ของ pane
-- `tmux send-keys -t pane Enter` — กด Enter เพื่อ submit
-- วิธีนี้ไม่มีปัญหา buffer overflow สำหรับ prompt ยาว
+`sleep 0.5` คั่นกลางเพื่อให้ Claude Code ประมวลผล input จาก paste-buffer เสร็จก่อน Enter มาถึง — ป้องกัน submit ที่ไม่สมบูรณ์
 
 ทุก prompt ที่ส่งให้ teammate ต้องมีคำสั่งรายงานกลับต่อท้ายเสมอ:
 
 ```
-เมื่อเสร็จแล้วให้รายงานกลับด้วยการรัน 2 คำสั่งนี้:
-tmux set-buffer "<role> เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0
-tmux send-keys -t dev-team:0.0 Enter
+เมื่อเสร็จแล้วให้รายงานกลับ:
+tmux set-buffer "<role> เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
 ```
 
 **หมายเหตุ**: agent definition ทุกตัวมี rule บังคับรายงานกลับอยู่แล้ว แต่ Lead ต้องใส่ไว้ใน prompt ด้วยเสมอเพื่อ reinforce
@@ -159,6 +147,16 @@ Lead ดูสถานะ pane ด้วย:
 ```bash
 tmux capture-pane -t dev-team:0.1 -p | tail -20
 ```
+
+### Peer-to-peer communication (CC Lead)
+
+Agents สามารถส่งข้อความหากันตรงได้ — Lead จะได้รับ CC ทุกครั้งในรูปแบบ:
+
+```
+[frontend → backend] ต้องการ response format ของ /auth/login
+```
+
+Lead ไม่ต้อง relay ข้อความเหล่านี้ — รับรู้ไว้เพื่อ track สถานะการประสานงาน
 
 ## รับคำสั่งได้ 2 แบบ
 
@@ -196,8 +194,8 @@ tmux capture-pane -t dev-team:0.1 -p | tail -20
 - ถ้า agent เสร็จแล้วให้ Lead commit & push แทนได้เลย ไม่ต้องรอ
 
 ### Agent ทำตัวเป็น Lead แทนที่จะทำงานเอง
-- สาเหตุ: pane อ่าน CLAUDE.md ของ Lead ใน `agent-teams` directory → คิดว่าตัวเองเป็น Lead
-- ทางแก้: task ทุก prompt ต้องมี role declaration `[ROLE: xxx — ทำงานเองโดยตรง ห้าม spawn]` ที่หัวเสมอ
+- แก้แล้ว: agent แต่ละตัวเริ่มใน `/tmp/agent-<role>/` ซึ่งมี CLAUDE.md ระบุ specialist role ไว้ตั้งแต่แรก
+- ถ้ายังเกิดขึ้น: ใส่ role declaration `[ROLE: xxx — ทำงานเองโดยตรง ห้าม spawn]` ที่หัว prompt
 - ถ้า pane spawn subagent แล้ว: ให้รันคำสั่งใหม่ใน pane นั้นโดยตรงพร้อม role override
 
 ### tmux prompt ค้างใน input box

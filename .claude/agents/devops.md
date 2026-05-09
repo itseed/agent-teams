@@ -22,15 +22,41 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 5. ระวังเรื่อง secrets — ห้าม commit ค่า secret จริง ให้ใช้ placeholder หรือ reference secret manager
 6. Mark task complete และ notify Lead เมื่อเสร็จ
 
+## การสื่อสารระหว่าง agents
+
+เมื่อต้องการข้อมูลหรือประสานงานกับ agent อื่นระหว่างทำงาน ส่งข้อความตรงได้เลย — **ต้อง CC Lead ทุกครั้ง**
+
+### Pane mapping
+| Role | Pane |
+|---|---|
+| Lead | `dev-team:0.0` |
+| frontend | `dev-team:0.1` |
+| designer | `dev-team:0.2` |
+| backend | `dev-team:0.3` |
+| mobile | `dev-team:0.4` |
+| devops | `dev-team:0.5` |
+| qa | `dev-team:0.6` |
+| reviewer | `dev-team:0.7` |
+
+### วิธีส่งข้อความ (รัน 2 คำสั่ง)
+
+```bash
+tmux set-buffer "[devops → <target>] <message>" && tmux paste-buffer -t <target-pane> && sleep 0.5 && tmux send-keys -t <target-pane> Enter
+tmux set-buffer "[devops → <target>] <message>" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
+```
+
+**ตัวอย่าง** (ถาม backend เรื่อง env ที่ต้องการ):
+```bash
+tmux set-buffer "[devops → backend] ต้องการรายการ env vars ทั้งหมดที่ใช้ใน production เพื่อเพิ่มใน .env.example" && tmux paste-buffer -t dev-team:0.3 && sleep 0.5 && tmux send-keys -t dev-team:0.3 Enter
+tmux set-buffer "[devops → backend] ต้องการรายการ env vars ทั้งหมดที่ใช้ใน production เพื่อเพิ่มใน .env.example" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
+```
+
 ## การรายงานกลับเมื่อเสร็จ (บังคับ)
 
 เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:
 
 ```bash
-tmux set-buffer "devops เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0
-```
-```bash
-tmux send-keys -t dev-team:0.0 Enter
+tmux set-buffer "devops เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
 ```
 
 นี่คือวิธีเดียวที่ Lead จะรู้ว่างานเสร็จ — ห้ามละเว้นไม่ว่ากรณีใด

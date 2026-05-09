@@ -54,35 +54,25 @@ fi
 
 echo "→ Project: $PROJECT"
 
-# ──────────────────────────────────────────────────────────────
-# Resolve paths (with fallbacks)
-# ──────────────────────────────────────────────────────────────
-get_path() {
-  jq -r --arg p "$PROJECT" --arg k "$1" '.projects[$p].paths[$k] // empty' "$PROJECTS_JSON"
-}
-
-WEB_PATH=$(get_path "web")
-API_PATH=$(get_path "api")
-MOBILE_PATH=$(get_path "mobile")
-EXTENSION_PATH=$(get_path "extension")
-ROOT_PATH=$(get_path "root")   # monorepo root — ใช้กับ devops/qa/reviewer
-
-# First non-empty among candidates, fallback to SCRIPT_DIR
-first() {
-  for p in "$@"; do
-    [[ -n "$p" ]] && { echo "$p"; return; }
-  done
-  echo "$SCRIPT_DIR"
-}
-
 LEAD_PATH="$SCRIPT_DIR"
-FRONTEND_PATH=$(first "$WEB_PATH" "$EXTENSION_PATH" "$API_PATH")
-BACKEND_PATH=$(first "$API_PATH" "$WEB_PATH")
-MOBILE_AGENT_PATH=$(first "$MOBILE_PATH" "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
-DEVOPS_PATH=$(first "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
-DESIGNER_PATH=$(first "$WEB_PATH" "$MOBILE_PATH" "$API_PATH")
-QA_PATH=$(first "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
-REVIEWER_PATH=$(first "$ROOT_PATH" "$API_PATH" "$WEB_PATH")
+
+# ──────────────────────────────────────────────────────────────
+# Create per-agent temp dirs with CLAUDE.md (role at system-prompt level)
+# Agents start here so Claude reads the specialist role definition before
+# any task arrives — prevents Lead CLAUDE.md from taking over.
+# Project working directory is injected per-task by Lead.
+# ──────────────────────────────────────────────────────────────
+create_agent_dirs() {
+  local roles=(frontend designer backend mobile devops qa reviewer)
+  for role in "${roles[@]}"; do
+    local dir="/tmp/agent-${role}"
+    local src="$SCRIPT_DIR/.claude/agents/${role}.md"
+    mkdir -p "$dir"
+    [[ -f "$src" ]] || continue
+    # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
+    awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
+  done
+}
 
 # ──────────────────────────────────────────────────────────────
 # Resume or restart existing session
@@ -110,13 +100,16 @@ fi
 # ──────────────────────────────────────────────────────────────
 echo "→ Spawning session '$SESSION'..."
 
-# 1. Create session with Lead pane
+# 1. Prepare per-agent CLAUDE.md in /tmp (must run before panes spawn)
+create_agent_dirs
+
+# 2. Create session with Lead pane
 tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$CLAUDE_CMD"
 
-# 2. Enable mouse support
+# 3. Enable mouse support
 tmux set-option -g -t "$SESSION" mouse on
 
-# 3. Enable pane border + styling
+# 4. Enable pane border + styling
 #    - @role + @role_color = user options (program เขียนทับไม่ได้)
 #    - pane-border-style: สีเส้นกรอบเมื่อไม่ active
 #    - pane-active-border-style: สีเส้นกรอบเมื่อ active (highlight)
@@ -127,57 +120,73 @@ tmux set-option -w -t "$SESSION:0" pane-border-format " #[fg=#{@role_color},bold
 tmux set-option -p -t "$SESSION:0.0" @role "Lead"
 tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 
-# 4. Create 3 columns (Lead | middle | right)
-tmux split-window -t "$SESSION:0.0" -h -c "$FRONTEND_PATH" "$CLAUDE_CMD"   # pane 1
-tmux split-window -t "$SESSION:0.1" -h -c "$DESIGNER_PATH" "$CLAUDE_CMD"   # pane 2
+# 5. Create 3 columns (Lead | middle | right)
+# Agents start in /tmp/agent-<role>/ so Claude reads the specialist CLAUDE.md
+# before any task arrives. Lead injects actual project path per task.
+tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-frontend" "$CLAUDE_CMD"   # pane 1
+tmux split-window -t "$SESSION:0.1" -h -c "/tmp/agent-designer" "$CLAUDE_CMD"   # pane 2
 tmux select-layout -t "$SESSION:0" even-horizontal
 
-# 5. Middle column: 4 equal rows (frontend, backend, mobile, devops)
-tmux split-window -t "$SESSION:0.1" -v -l 75% -c "$BACKEND_PATH"       "$CLAUDE_CMD"   # pane 3
-tmux split-window -t "$SESSION:0.3" -v -l 67% -c "$MOBILE_AGENT_PATH"  "$CLAUDE_CMD"   # pane 4
-tmux split-window -t "$SESSION:0.4" -v -l 50% -c "$DEVOPS_PATH"        "$CLAUDE_CMD"   # pane 5
+# 6. Middle column: 4 equal rows (frontend, backend, mobile, devops)
+tmux split-window -t "$SESSION:0.1" -v -l 75% -c "/tmp/agent-backend" "$CLAUDE_CMD"   # pane 3
+tmux split-window -t "$SESSION:0.3" -v -l 67% -c "/tmp/agent-mobile"  "$CLAUDE_CMD"   # pane 4
+tmux split-window -t "$SESSION:0.4" -v -l 50% -c "/tmp/agent-devops"  "$CLAUDE_CMD"   # pane 5
 
-# 6. Right column: 3 equal rows (designer, qa, reviewer)
-tmux split-window -t "$SESSION:0.2" -v -l 67% -c "$QA_PATH"       "$CLAUDE_CMD"   # pane 6
-tmux split-window -t "$SESSION:0.6" -v -l 50% -c "$REVIEWER_PATH" "$CLAUDE_CMD"   # pane 7
+# 7. Right column: 3 equal rows (designer, qa, reviewer)
+tmux split-window -t "$SESSION:0.2" -v -l 67% -c "/tmp/agent-qa"       "$CLAUDE_CMD"   # pane 6
+tmux split-window -t "$SESSION:0.6" -v -l 50% -c "/tmp/agent-reviewer" "$CLAUDE_CMD"   # pane 7
 
-# 7. Set @role + @role_color per pane (user option — not affected by program output)
+# 8. Set @role + @role_color per pane (user option — not affected by program output)
 #    Dev roles = cool colors, Support roles = warm colors
-tmux set-option -p -t "$SESSION:0.1" @role "frontend"  ; tmux set-option -p -t "$SESSION:0.1" @role_color "cyan"
-tmux set-option -p -t "$SESSION:0.2" @role "designer"  ; tmux set-option -p -t "$SESSION:0.2" @role_color "colour211"
-tmux set-option -p -t "$SESSION:0.3" @role "backend"   ; tmux set-option -p -t "$SESSION:0.3" @role_color "blue"
-tmux set-option -p -t "$SESSION:0.4" @role "mobile"    ; tmux set-option -p -t "$SESSION:0.4" @role_color "magenta"
-tmux set-option -p -t "$SESSION:0.5" @role "devops"    ; tmux set-option -p -t "$SESSION:0.5" @role_color "green"
-tmux set-option -p -t "$SESSION:0.6" @role "qa"        ; tmux set-option -p -t "$SESSION:0.6" @role_color "colour208"
-tmux set-option -p -t "$SESSION:0.7" @role "reviewer"  ; tmux set-option -p -t "$SESSION:0.7" @role_color "red"
+tmux set-option -p -t "$SESSION:0.1" @role "Frontend"  ; tmux set-option -p -t "$SESSION:0.1" @role_color "cyan"
+tmux set-option -p -t "$SESSION:0.2" @role "Designer"  ; tmux set-option -p -t "$SESSION:0.2" @role_color "colour211"
+tmux set-option -p -t "$SESSION:0.3" @role "Backend"   ; tmux set-option -p -t "$SESSION:0.3" @role_color "blue"
+tmux set-option -p -t "$SESSION:0.4" @role "Mobile"    ; tmux set-option -p -t "$SESSION:0.4" @role_color "magenta"
+tmux set-option -p -t "$SESSION:0.5" @role "DevOps"    ; tmux set-option -p -t "$SESSION:0.5" @role_color "green"
+tmux set-option -p -t "$SESSION:0.6" @role "QA"        ; tmux set-option -p -t "$SESSION:0.6" @role_color "colour208"
+tmux set-option -p -t "$SESSION:0.7" @role "Reviewer"  ; tmux set-option -p -t "$SESSION:0.7" @role_color "red"
 
-# 8. Inject agent role definition as first message to each teammate pane
-#    ทำให้ agent รู้ role ของตัวเองตั้งแต่แรก — ไม่ต้องพึ่ง CLAUDE.md จาก project
-#    portable: อ่านจาก .claude/agents/ ที่อยู่ใน repo นี้เสมอ
-inject_role() {
-  local pane="$1"
-  local agent_file="$SCRIPT_DIR/.claude/agents/$2.md"
-  [[ -f "$agent_file" ]] || return
+# 9. Inject startup context to Lead (runs in background so attach isn't blocked)
+inject_lead_context() {
+  local pane="$SESSION:0.0"
 
-  # Wait for Claude prompt to appear (max 30s)
+  # Build project paths string
+  local paths_str
+  paths_str=$(jq -r --arg p "$PROJECT" \
+    '.projects[$p].paths | to_entries[] | "  \(.key): \(.value)"' \
+    "$PROJECTS_JSON" 2>/dev/null || true)
+
+  local msg
+  msg=$(cat <<MSG
+ทีมพร้อมแล้ว — agents รอรับงานใน panes ต่อไปนี้:
+
+  Frontend  → dev-team:0.1
+  Designer  → dev-team:0.2
+  Backend   → dev-team:0.3
+  Mobile    → dev-team:0.4
+  DevOps    → dev-team:0.5
+  QA        → dev-team:0.6
+  Reviewer  → dev-team:0.7
+
+project: $PROJECT
+$paths_str
+
+ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
+MSG
+)
+
+  # Wait for Lead's Claude prompt before injecting (max 40s)
   local i=0
-  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "bypass permissions|❯|>"; do
-    sleep 1; ((i++)); [[ $i -gt 30 ]] && break
+  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "❯|bypass permissions"; do
+    sleep 1; ((i++)); [[ $i -gt 40 ]] && break
   done
 
-  tmux set-buffer "$(cat "$agent_file")" && tmux paste-buffer -t "$pane"
+  tmux set-buffer "$msg" && tmux paste-buffer -t "$pane"
   tmux send-keys -t "$pane" Enter
 }
+inject_lead_context &
 
-inject_role "$SESSION:0.1" "frontend"
-inject_role "$SESSION:0.2" "designer"
-inject_role "$SESSION:0.3" "backend"
-inject_role "$SESSION:0.4" "mobile"
-inject_role "$SESSION:0.5" "devops"
-inject_role "$SESSION:0.6" "qa"
-inject_role "$SESSION:0.7" "reviewer"
-
-# 9. Focus Lead
+# 10. Focus Lead
 tmux select-pane -t "$SESSION:0.0"
 
 # ──────────────────────────────────────────────────────────────
@@ -187,15 +196,15 @@ cat <<EOF
 
 ✓ Session '$SESSION' ready.
 
-Pane mapping:
+Pane mapping (agents start in /tmp/agent-<role>/ for role isolation):
   Lead     → $SESSION:0.0  ($LEAD_PATH)
-  frontend → $SESSION:0.1  ($FRONTEND_PATH)
-  designer → $SESSION:0.2  ($DESIGNER_PATH)
-  backend  → $SESSION:0.3  ($BACKEND_PATH)
-  mobile   → $SESSION:0.4  ($MOBILE_AGENT_PATH)
-  devops   → $SESSION:0.5  ($DEVOPS_PATH)
-  qa       → $SESSION:0.6  ($QA_PATH)
-  reviewer → $SESSION:0.7  ($REVIEWER_PATH)
+  frontend → $SESSION:0.1  (/tmp/agent-frontend)
+  designer → $SESSION:0.2  (/tmp/agent-designer)
+  backend  → $SESSION:0.3  (/tmp/agent-backend)
+  mobile   → $SESSION:0.4  (/tmp/agent-mobile)
+  devops   → $SESSION:0.5  (/tmp/agent-devops)
+  qa       → $SESSION:0.6  (/tmp/agent-qa)
+  reviewer → $SESSION:0.7  (/tmp/agent-reviewer)
 
 EOF
 
