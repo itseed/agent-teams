@@ -8,6 +8,25 @@
 
 set -euo pipefail
 
+# ──────────────────────────────────────────────────────────────
+# Windows native guard (must run inside WSL2, not CMD/PowerShell)
+# ──────────────────────────────────────────────────────────────
+if [[ "${OS:-}" == "Windows_NT" ]] || \
+   { [[ -f /proc/version ]] && grep -qi "microsoft" /proc/version && [[ -z "${WSL_DISTRO_NAME:-}" ]]; }; then
+  cat >&2 <<'EOF'
+Error: start-team.sh ต้องรันใน WSL2 เท่านั้น ไม่รองรับ Windows CMD/PowerShell โดยตรง
+
+วิธีแก้:
+  1. ติดตั้ง WSL2 ด้วย setup-windows.ps1 (PowerShell as Administrator):
+       .\setup-windows.ps1
+  2. เปิด Ubuntu terminal แล้วไปที่ repo:
+       cd ~/agent-teams
+  3. รันใหม่:
+       ./start-team.sh
+EOF
+  exit 1
+fi
+
 SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"

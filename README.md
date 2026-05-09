@@ -128,20 +128,48 @@ Agent definitions อยู่ใน [.claude/agents/](.claude/agents/)
 
 ## Prerequisites
 
+**macOS / Linux (native)**
+
 | Requirement | Install |
 |---|---|
 | [tmux](https://github.com/tmux/tmux) 3.1+ | `brew install tmux` |
 | [jq](https://jqlang.github.io/jq/) | `brew install jq` |
 | [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | `npm install -g @anthropic-ai/claude-code` แล้ว `claude login` |
 
+**Windows — ต้องใช้ WSL2**
+
+agent-teams ต้องการ tmux ซึ่งไม่มีใน Windows native — รัน `setup-windows.ps1` เพื่อติดตั้ง WSL2 + Ubuntu แล้วทำงานต่อใน Ubuntu terminal
+
 หรือรัน `./install.sh` เพื่อตรวจและติดตั้ง dependencies อัตโนมัติ
 
 ## Quick start
+
+**macOS / Linux**
 
 ```bash
 git clone https://github.com/itseed/agent-teams.git
 cd agent-teams
 ./install.sh
+```
+
+**Windows**
+
+```powershell
+# เปิด PowerShell as Administrator
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\setup-windows.ps1
+```
+
+`setup-windows.ps1` จะ:
+- Enable WSL2 + Virtual Machine Platform
+- ติดตั้ง Ubuntu (ถ้ายังไม่มี)
+- Clone repo เข้า `~/agent-teams` ใน Ubuntu
+- รัน `install.sh` ให้อัตโนมัติ
+
+หลังจากนั้นเปิด Ubuntu terminal แล้วใช้งานได้เลย:
+```bash
+cd ~/agent-teams
+./start-team.sh
 ```
 
 `install.sh` จะ:
