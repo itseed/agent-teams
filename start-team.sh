@@ -146,7 +146,26 @@ tmux set-option -p -t "$SESSION:0.5" @role "DevOps"    ; tmux set-option -p -t "
 tmux set-option -p -t "$SESSION:0.6" @role "QA"        ; tmux set-option -p -t "$SESSION:0.6" @role_color "colour208"
 tmux set-option -p -t "$SESSION:0.7" @role "Reviewer"  ; tmux set-option -p -t "$SESSION:0.7" @role_color "red"
 
-# 9. Inject startup context to Lead (runs in background so attach isn't blocked)
+# 9. Auto-answer trust prompt for agent panes (each pane runs in background)
+#    /tmp/agent-<role>/ is a new directory — Claude Code asks once per directory
+auto_trust() {
+  local pane="$1"
+  local i=0
+  while [[ $i -lt 30 ]]; do
+    if tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q "trust this folder"; then
+      tmux send-keys -t "$pane" "1" Enter
+      return
+    fi
+    sleep 0.5
+    ((i++))
+  done
+}
+
+for _pane in "$SESSION:0.1" "$SESSION:0.2" "$SESSION:0.3" "$SESSION:0.4" "$SESSION:0.5" "$SESSION:0.6" "$SESSION:0.7"; do
+  auto_trust "$_pane" &
+done
+
+# 10. Inject startup context to Lead (runs in background so attach isn't blocked)
 inject_lead_context() {
   local pane="$SESSION:0.0"
 
@@ -186,7 +205,7 @@ MSG
 }
 inject_lead_context &
 
-# 10. Focus Lead
+# 11. Focus Lead
 tmux select-pane -t "$SESSION:0.0"
 
 # ──────────────────────────────────────────────────────────────
