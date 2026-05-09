@@ -128,7 +128,7 @@ Agent definitions อยู่ใน [.claude/agents/](.claude/agents/)
 
 ## Prerequisites
 
-**macOS / Linux (native)**
+**macOS / Linux**
 
 | Requirement | Install |
 |---|---|
@@ -136,11 +136,12 @@ Agent definitions อยู่ใน [.claude/agents/](.claude/agents/)
 | [jq](https://jqlang.github.io/jq/) | `brew install jq` |
 | [Claude Code CLI](https://docs.claude.com/en/docs/claude-code) | `npm install -g @anthropic-ai/claude-code` แล้ว `claude login` |
 
-**Windows — ต้องใช้ WSL2**
+**Windows** `[Beta]`
 
-agent-teams ต้องการ tmux ซึ่งไม่มีใน Windows native — รัน `setup-windows.ps1` เพื่อติดตั้ง WSL2 + Ubuntu แล้วทำงานต่อใน Ubuntu terminal
+agent-teams ต้องการ tmux ซึ่งไม่มีใน Windows native — ต้องรันผ่าน **WSL2 (Ubuntu)** เท่านั้น  
+ดูขั้นตอนละเอียดที่ [Windows Setup (Beta)](#windows-setup-beta) ด้านล่าง
 
-หรือรัน `./install.sh` เพื่อตรวจและติดตั้ง dependencies อัตโนมัติ
+หรือรัน `./install.sh` เพื่อตรวจและติดตั้ง dependencies อัตโนมัติ (รันใน WSL2)
 
 ## Quick start
 
@@ -152,30 +153,101 @@ cd agent-teams
 ./install.sh
 ```
 
-**Windows**
+`install.sh` จะ:
+- ตรวจและติดตั้ง dependencies (tmux, jq, Claude CLI)
+- สร้าง projects.json จาก example
+- ตั้งค่า Snyk (optional)
+
+**Windows** — ดู [Windows Setup (Beta)](#windows-setup-beta)
+
+---
+
+## Windows Setup `[Beta]`
+
+> **หมายเหตุ:** Windows support ยังอยู่ในช่วง Beta — ทีมทดสอบบน WSL2 + Ubuntu เป็นหลัก อาจพบปัญหาเฉพาะ Windows ที่ยังไม่ได้รับการแก้ไข
+
+agent-teams ใช้ tmux สำหรับจัดการ pane หลายตัวพร้อมกัน ซึ่งไม่มีใน Windows native  
+วิธีแก้: รันทั้งหมดใน **WSL2** (Windows Subsystem for Linux) — Linux environment ที่รันบน Windows โดยตรง
+
+### สิ่งที่ต้องมี
+
+- Windows 10 version 2004 (build 19041) ขึ้นไป หรือ Windows 11
+- PowerShell (มาพร้อม Windows)
+- สิทธิ์ Administrator
+
+### ขั้นตอน
+
+**ขั้นที่ 1 — รัน setup-windows.ps1 (ครั้งแรกครั้งเดียว)**
+
+เปิด PowerShell as Administrator แล้วรัน:
 
 ```powershell
-# เปิด PowerShell as Administrator
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\setup-windows.ps1
 ```
 
-`setup-windows.ps1` จะ:
-- Enable WSL2 + Virtual Machine Platform
-- ติดตั้ง Ubuntu (ถ้ายังไม่มี)
-- Clone repo เข้า `~/agent-teams` ใน Ubuntu
-- รัน `install.sh` ให้อัตโนมัติ
+script จะทำให้อัตโนมัติ:
+1. Enable WSL2 + Virtual Machine Platform (reboot ถ้าจำเป็น — รัน script อีกครั้งหลัง reboot)
+2. ติดตั้ง Ubuntu จาก Microsoft Store (ถ้ายังไม่มี)
+3. Clone repo เข้า `~/agent-teams` ใน Ubuntu
+4. รัน `install.sh` เพื่อติดตั้ง tmux, jq, Claude CLI
 
-หลังจากนั้นเปิด Ubuntu terminal แล้วใช้งานได้เลย:
+> ถ้า script reboot เครื่อง ให้เปิด PowerShell as Administrator แล้วรัน `.\setup-windows.ps1` อีกครั้ง — script จะต่อจากจุดที่ค้างไว้
+
+**ขั้นที่ 2 — ตั้งค่า Ubuntu user (ครั้งแรกครั้งเดียว)**
+
+เมื่อ Ubuntu เปิดครั้งแรก จะถามชื่อ user และ password สำหรับ Linux — ตั้งได้เลย (ไม่ต้องตรงกับ Windows account)
+
+**ขั้นที่ 3 — แก้ paths ใน projects.json**
+
+เปิด Ubuntu terminal แล้วแก้ไฟล์:
+
+```bash
+cd ~/agent-teams
+nano projects.json
+```
+
+ใส่ absolute path ของ project ที่ต้องการ (Linux path format ใน WSL2):
+
+```json
+{
+  "active": "myproject",
+  "projects": {
+    "myproject": {
+      "description": "My project",
+      "paths": {
+        "web": "/home/<username>/projects/myproject/web",
+        "api": "/home/<username>/projects/myproject/api"
+      }
+    }
+  }
+}
+```
+
+> **เข้าถึงไฟล์ Windows จาก WSL2:** ไดรฟ์ Windows อยู่ที่ `/mnt/c/`, `/mnt/d/` ฯลฯ  
+> เช่น `C:\Users\you\projects\myapp` → `/mnt/c/Users/you/projects/myapp`
+
+**ขั้นที่ 4 — Start session**
+
 ```bash
 cd ~/agent-teams
 ./start-team.sh
 ```
 
-`install.sh` จะ:
-- ตรวจและติดตั้ง dependencies (tmux, jq, Claude CLI)
-- สร้าง projects.json จาก example
-- ตั้งค่า Snyk (optional)
+### การใช้งานประจำวัน (หลัง setup แล้ว)
+
+```bash
+# เปิด Ubuntu terminal จาก Start Menu หรือ Windows Terminal
+cd ~/agent-teams
+./start-team.sh        # เริ่ม session
+./stop-team.sh         # หยุด session
+```
+
+### ข้อจำกัด Beta
+
+- ทดสอบบน WSL2 + Ubuntu 22.04 เท่านั้น — distro อื่นอาจมีปัญหา
+- Claude Code บน WSL2 ยังไม่ผ่านการทดสอบครบถ้วน
+- Windows native (CMD / PowerShell) ไม่รองรับ — `start-team.sh` จะแสดง error และหยุดทันที
 
 ### หลัง install.sh รัน — แก้ paths ใน projects.json ให้ตรงกับเครื่องของคุณ
 
@@ -282,6 +354,7 @@ agent-teams/
 ├── install.sh                 # one-command setup (ตรวจ deps, สร้าง projects.json, ตั้งค่า Snyk)
 ├── start-team.sh              # spawn tmux session + 8 panes
 ├── stop-team.sh               # kill session
+├── setup-windows.ps1          # [Beta] Windows setup: WSL2 + Ubuntu + install อัตโนมัติ
 └── .claude/
     ├── agents/                # agent definitions (7 roles)
     │   ├── frontend.md
@@ -372,6 +445,12 @@ tmux list-panes -t dev-team -F "#{pane_index} #{@role}"
 ---
 
 ## Changelog
+
+### 2026-05-09 (2)
+
+**Windows support (Beta)** — เพิ่ม `setup-windows.ps1` สำหรับ Windows user: ติดตั้ง WSL2 + Ubuntu + clone repo + รัน `install.sh` อัตโนมัติ  
+`start-team.sh` ตรวจสอบและแสดง error ถ้ารันบน Windows native (CMD/PowerShell) พร้อมแนะนำ WSL2  
+ดูรายละเอียดทั้งหมดที่ [Windows Setup (Beta)](#windows-setup-beta)
 
 ### 2026-05-09
 
