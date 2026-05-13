@@ -165,6 +165,15 @@ tmux set-option -p -t "$PANE_DEVOPS"   @role "DevOps"   ; tmux set-option -p -t 
 tmux set-option -p -t "$PANE_QA"       @role "QA"       ; tmux set-option -p -t "$PANE_QA"       @role_color "colour208"
 tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t "$PANE_REVIEWER" @role_color "red"
 
+# 9b. RTK Stats pane (optional — only if rtk is installed)
+RTK_PANE_CREATED=false
+if command -v rtk >/dev/null 2>&1; then
+  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' 'watch -n 30 rtk gain')
+  tmux set-option -p -t "$PANE_RTK" @role "RTK Stats"
+  tmux set-option -p -t "$PANE_RTK" @role_color "colour46"
+  RTK_PANE_CREATED=true
+fi
+
 # 9. Auto-answer trust prompt for agent panes (each pane runs in background)
 #    /tmp/agent-<role>/ is a new directory — Claude Code asks once per directory
 auto_trust() {
@@ -195,7 +204,27 @@ inject_lead_context() {
     "$PROJECTS_JSON" 2>/dev/null || true)
 
   local msg
-  msg=$(cat <<MSG
+  if $RTK_PANE_CREATED; then
+    msg=$(cat <<MSG
+ทีมพร้อมแล้ว — agents รอรับงานใน panes ต่อไปนี้:
+
+  RTK Stats → dev-team:0.1
+  Frontend  → dev-team:0.2
+  Backend   → dev-team:0.3
+  Mobile    → dev-team:0.4
+  DevOps    → dev-team:0.5
+  Designer  → dev-team:0.6
+  QA        → dev-team:0.7
+  Reviewer  → dev-team:0.8
+
+project: $PROJECT
+$paths_str
+
+ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
+MSG
+)
+  else
+    msg=$(cat <<MSG
 ทีมพร้อมแล้ว — agents รอรับงานใน panes ต่อไปนี้:
 
   Frontend  → dev-team:0.1
@@ -212,6 +241,7 @@ $paths_str
 ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
 MSG
 )
+  fi
 
   # Wait for Lead's Claude prompt before injecting (max 40s)
   local i=0

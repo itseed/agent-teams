@@ -15,6 +15,7 @@ CLAUDE_OK=false
 PROJECTS_OK=false
 SCRIPTS_OK=false
 SNYK_CONFIGURED=false
+RTK_OK=false
 
 check_os() {
   local os
@@ -268,6 +269,54 @@ setup_snyk() {
   SNYK_CONFIGURED=true
 }
 
+setup_rtk() {
+  echo ""
+  echo "Checking RTK (Rust Token Killer)..."
+
+  if command -v rtk >/dev/null 2>&1; then
+    echo "  ✓ rtk $(rtk --version 2>/dev/null | head -1 || true)"
+    RTK_OK=true
+    return 0
+  fi
+
+  echo "  ✗ rtk not found"
+  printf "  Install RTK for token-optimized Claude Code operations? [y/N] "
+  read -r ans
+  [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]] && return 0
+
+  if [[ "$PKG_MANAGER" == "brew" ]]; then
+    echo "  → Installing via brew..."
+    brew install rtk
+  elif command -v curl >/dev/null 2>&1; then
+    echo "  → Installing via install script..."
+    curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+    if ! grep -q 'HOME/.local/bin' "${HOME}/.bashrc" 2>/dev/null; then
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "${HOME}/.bashrc"
+      echo "  → Added \$HOME/.local/bin to PATH in ~/.bashrc"
+    fi
+    export PATH="$HOME/.local/bin:$PATH"
+  else
+    echo "  → No supported install method — install manually: https://github.com/rtk-ai/rtk"
+    return 0
+  fi
+
+  if ! command -v rtk >/dev/null 2>&1; then
+    echo "  ✗ Installation may have failed — install manually"
+    return 0
+  fi
+
+  echo "  ✓ rtk installed"
+  RTK_OK=true
+  printf "  Set up Claude Code hook? (rtk init -g) [y/N] "
+  read -r ans
+  [[ "${ans:-N}" != "y" && "${ans:-N}" != "Y" ]] && return 0
+  if rtk init -g; then
+    echo "  ✓ rtk hook configured"
+  else
+    echo "  ✗ rtk init -g failed — run manually: rtk init -g"
+  fi
+}
+
 verify() {
   local _s
   _s() {
@@ -295,6 +344,14 @@ verify() {
     echo "  ○ snyk (skipped)"
   fi
 
+  if $RTK_OK; then
+    local _rtk_ver
+    _rtk_ver=$(rtk --version 2>/dev/null | head -1 || true)
+    echo "  ✓ rtk${_rtk_ver:+  ($_rtk_ver)}"
+  else
+    echo "  ○ rtk (skipped)"
+  fi
+
   echo "────────────────────────────────"
 
   if $TMUX_OK && $JQ_OK && $CLAUDE_OK && $PROJECTS_OK; then
@@ -315,6 +372,7 @@ main() {
   check_os
   check_deps
   setup_claude
+  setup_rtk
   setup_projects
   setup_snyk
   verify
