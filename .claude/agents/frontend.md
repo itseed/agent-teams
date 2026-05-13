@@ -16,44 +16,33 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 1. อ่าน task จาก shared task list
 2. ทำงานใน working directory ที่ Lead กำหนด
 3. เขียน code พร้อม **unit tests** สำหรับ code ที่ตัวเองเขียน (integration/e2e เป็นหน้าที่ QA)
-4. Mark task complete และ notify Lead เมื่อเสร็จ
+4. TaskUpdate(task_id, "completed") แล้ว return ผลลัพธ์ — Lead รับผ่าน Agent tool
 5. ถ้าต้องการ input จาก backend ให้ message โดยตรง
 
-## การสื่อสารระหว่าง agents
+## การเขียน log
 
-เมื่อต้องการข้อมูลหรือประสานงานกับ agent อื่นระหว่างทำงาน ส่งข้อความตรงได้เลย — **ต้อง CC Lead ทุกครั้ง**
-
-### Pane mapping
-| Role | Pane |
-|---|---|
-| Lead | `dev-team:0.0` |
-| frontend | `dev-team:0.1` |
-| designer | `dev-team:0.2` |
-| backend | `dev-team:0.3` |
-| mobile | `dev-team:0.4` |
-| devops | `dev-team:0.5` |
-| qa | `dev-team:0.6` |
-| reviewer | `dev-team:0.7` |
-
-### วิธีส่งข้อความ (รัน 2 คำสั่ง)
+เขียน progress ลงไฟล์ตลอดการทำงาน — tmux pane ของคุณแสดงไฟล์นี้แบบ real-time:
 
 ```bash
-tmux set-buffer "[frontend → <target>] <message>" && tmux paste-buffer -t <target-pane> && sleep 0.5 && tmux send-keys -t <target-pane> Enter
-tmux set-buffer "[frontend → <target>] <message>" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
+# เขียน header เมื่อเริ่ม task
+echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/frontend.log
+
+# เขียน progress
+echo "[frontend] กำลังทำ <step>" >> /tmp/agent-logs/frontend.log
+
+# เขียนเมื่อเสร็จ
+echo "[frontend] ✓ เสร็จสิ้น: <summary>" >> /tmp/agent-logs/frontend.log
+
+# เขียนเมื่อ error
+echo "[frontend] ✗ Error: <error detail>" >> /tmp/agent-logs/frontend.log
 ```
 
-**ตัวอย่าง** (ถาม backend เรื่อง API):
-```bash
-tmux set-buffer "[frontend → backend] ต้องการ response format ของ /auth/login ก่อนทำ form" && tmux paste-buffer -t dev-team:0.3 && sleep 0.5 && tmux send-keys -t dev-team:0.3 Enter
-tmux set-buffer "[frontend → backend] ต้องการ response format ของ /auth/login ก่อนทำ form" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
-```
+## การ update task status
 
-## การรายงานกลับเมื่อเสร็จ (บังคับ)
+Lead จะ inject `task_id` ใน prompt ตอน spawn — ใช้เรียก TaskUpdate:
 
-เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:
+- เมื่อเริ่มงาน: เรียก `TaskUpdate` กับ status `in_progress`
+- เมื่อเสร็จสมบูรณ์: เรียก `TaskUpdate` กับ status `completed`
+- เมื่อเกิด error: เรียก `TaskUpdate` กับ status `error` แล้วใส่ error detail ใน return value
 
-```bash
-tmux set-buffer "frontend เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
-```
-
-นี่คือวิธีเดียวที่ Lead จะรู้ว่างานเสร็จ — ห้ามละเว้นไม่ว่ากรณีใด
+ผลลัพธ์สุดท้ายให้ **return กลับโดยตรง** — Lead รับผ่าน Agent tool result โดยอัตโนมัติ

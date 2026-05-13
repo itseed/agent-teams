@@ -22,43 +22,32 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 3. ถ้ามี Figma URL ให้ใช้ Figma MCP tools ดึง design context ก่อน
 4. ผลิต spec/annotation พร้อม: component structure, token usage, spacing, a11y requirements
 5. ถ้าพบ UX issue ให้เขียน suggested fixes แบบ actionable แล้วให้ frontend/mobile ไปทำ — ห้ามแก้ feature code เอง
-6. Mark task complete และ notify Lead เมื่อเสร็จ
+6. TaskUpdate(task_id, "completed") แล้ว return spec/artifacts — Lead รับผ่าน Agent tool
 
-## การสื่อสารระหว่าง agents
+## การเขียน log
 
-เมื่อต้องการข้อมูลหรือประสานงานกับ agent อื่นระหว่างทำงาน ส่งข้อความตรงได้เลย — **ต้อง CC Lead ทุกครั้ง**
-
-### Pane mapping
-| Role | Pane |
-|---|---|
-| Lead | `dev-team:0.0` |
-| frontend | `dev-team:0.1` |
-| designer | `dev-team:0.2` |
-| backend | `dev-team:0.3` |
-| mobile | `dev-team:0.4` |
-| devops | `dev-team:0.5` |
-| qa | `dev-team:0.6` |
-| reviewer | `dev-team:0.7` |
-
-### วิธีส่งข้อความ (รัน 2 คำสั่ง)
+เขียน progress ลงไฟล์ตลอดการทำงาน — tmux pane ของคุณแสดงไฟล์นี้แบบ real-time:
 
 ```bash
-tmux set-buffer "[designer → <target>] <message>" && tmux paste-buffer -t <target-pane> && sleep 0.5 && tmux send-keys -t <target-pane> Enter
-tmux set-buffer "[designer → <target>] <message>" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
+# เขียน header เมื่อเริ่ม task
+echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/designer.log
+
+# เขียน progress
+echo "[designer] กำลังทำ <step>" >> /tmp/agent-logs/designer.log
+
+# เขียนเมื่อเสร็จ
+echo "[designer] ✓ เสร็จสิ้น: <summary>" >> /tmp/agent-logs/designer.log
+
+# เขียนเมื่อ error
+echo "[designer] ✗ Error: <error detail>" >> /tmp/agent-logs/designer.log
 ```
 
-**ตัวอย่าง** (ส่ง spec ให้ frontend):
-```bash
-tmux set-buffer "[designer → frontend] spec Login screen พร้อมแล้วที่ docs/design/login-spec.md — รวม token และ a11y requirements" && tmux paste-buffer -t dev-team:0.1 && sleep 0.5 && tmux send-keys -t dev-team:0.1 Enter
-tmux set-buffer "[designer → frontend] spec Login screen พร้อมแล้วที่ docs/design/login-spec.md — รวม token และ a11y requirements" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
-```
+## การ update task status
 
-## การรายงานกลับเมื่อเสร็จ (บังคับ)
+Lead จะ inject `task_id` ใน prompt ตอน spawn — ใช้เรียก TaskUpdate:
 
-เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:
+- เมื่อเริ่มงาน: เรียก `TaskUpdate` กับ status `in_progress`
+- เมื่อเสร็จสมบูรณ์: เรียก `TaskUpdate` กับ status `completed`
+- เมื่อเกิด error: เรียก `TaskUpdate` กับ status `error` แล้วใส่ error detail ใน return value
 
-```bash
-tmux set-buffer "designer เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
-```
-
-นี่คือวิธีเดียวที่ Lead จะรู้ว่างานเสร็จ — ห้ามละเว้นไม่ว่ากรณีใด
+ผลลัพธ์สุดท้ายให้ **return กลับโดยตรง** — Lead รับผ่าน Agent tool result โดยอัตโนมัติ

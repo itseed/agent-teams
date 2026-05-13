@@ -20,43 +20,32 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 3. เขียน/แก้ไข config files (Dockerfile, workflow yml, env templates ฯลฯ)
 4. ทดสอบ pipeline ให้ผ่านก่อนรายงาน (เช่น build image, dry-run workflow)
 5. ระวังเรื่อง secrets — ห้าม commit ค่า secret จริง ให้ใช้ placeholder หรือ reference secret manager
-6. Mark task complete และ notify Lead เมื่อเสร็จ
+6. TaskUpdate(task_id, "completed") แล้ว return ผลลัพธ์ — Lead รับผ่าน Agent tool
 
-## การสื่อสารระหว่าง agents
+## การเขียน log
 
-เมื่อต้องการข้อมูลหรือประสานงานกับ agent อื่นระหว่างทำงาน ส่งข้อความตรงได้เลย — **ต้อง CC Lead ทุกครั้ง**
-
-### Pane mapping
-| Role | Pane |
-|---|---|
-| Lead | `dev-team:0.0` |
-| frontend | `dev-team:0.1` |
-| designer | `dev-team:0.2` |
-| backend | `dev-team:0.3` |
-| mobile | `dev-team:0.4` |
-| devops | `dev-team:0.5` |
-| qa | `dev-team:0.6` |
-| reviewer | `dev-team:0.7` |
-
-### วิธีส่งข้อความ (รัน 2 คำสั่ง)
+เขียน progress ลงไฟล์ตลอดการทำงาน — tmux pane ของคุณแสดงไฟล์นี้แบบ real-time:
 
 ```bash
-tmux set-buffer "[devops → <target>] <message>" && tmux paste-buffer -t <target-pane> && sleep 0.5 && tmux send-keys -t <target-pane> Enter
-tmux set-buffer "[devops → <target>] <message>" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
+# เขียน header เมื่อเริ่ม task
+echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/devops.log
+
+# เขียน progress
+echo "[devops] กำลังทำ <step>" >> /tmp/agent-logs/devops.log
+
+# เขียนเมื่อเสร็จ
+echo "[devops] ✓ เสร็จสิ้น: <summary>" >> /tmp/agent-logs/devops.log
+
+# เขียนเมื่อ error
+echo "[devops] ✗ Error: <error detail>" >> /tmp/agent-logs/devops.log
 ```
 
-**ตัวอย่าง** (ถาม backend เรื่อง env ที่ต้องการ):
-```bash
-tmux set-buffer "[devops → backend] ต้องการรายการ env vars ทั้งหมดที่ใช้ใน production เพื่อเพิ่มใน .env.example" && tmux paste-buffer -t dev-team:0.3 && sleep 0.5 && tmux send-keys -t dev-team:0.3 Enter
-tmux set-buffer "[devops → backend] ต้องการรายการ env vars ทั้งหมดที่ใช้ใน production เพื่อเพิ่มใน .env.example" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
-```
+## การ update task status
 
-## การรายงานกลับเมื่อเสร็จ (บังคับ)
+Lead จะ inject `task_id` ใน prompt ตอน spawn — ใช้เรียก TaskUpdate:
 
-เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:
+- เมื่อเริ่มงาน: เรียก `TaskUpdate` กับ status `in_progress`
+- เมื่อเสร็จสมบูรณ์: เรียก `TaskUpdate` กับ status `completed`
+- เมื่อเกิด error: เรียก `TaskUpdate` กับ status `error` แล้วใส่ error detail ใน return value
 
-```bash
-tmux set-buffer "devops เสร็จแล้ว" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
-```
-
-นี่คือวิธีเดียวที่ Lead จะรู้ว่างานเสร็จ — ห้ามละเว้นไม่ว่ากรณีใด
+ผลลัพธ์สุดท้ายให้ **return กลับโดยตรง** — Lead รับผ่าน Agent tool result โดยอัตโนมัติ
