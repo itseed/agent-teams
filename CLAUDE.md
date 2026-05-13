@@ -33,6 +33,18 @@ Agent definition ทุกตัวอยู่ใน `.claude/agents/` — Clau
 
 Lead ไม่ต้องระบุ agent definition เองใน prompt — แค่ระบุ role และ task
 
+**ตัวอย่าง:**
+```
+Spawn a frontend specialist.
+Working directory: /Users/kriangkrai/project/pms-web
+Task ID: task-001
+Task: สร้าง LoginForm component ด้วย Shadcn UI — email + password + submit button
+     รองรับ loading state, error state, และ remember me checkbox
+```
+
+Claude Code จะโหลด `.claude/agents/frontend.md` ให้อัตโนมัติจาก role name ใน prompt — Lead ไม่ต้องระบุ agent definition เอง  
+Agent จะ return ผลลัพธ์โดยตรงเมื่อเสร็จ
+
 ## Layout ของ tmux session
 
 ใช้ **3 columns ใน window เดียว**: Lead อยู่ซ้าย, dev roles ตรงกลาง (frontend / backend / mobile / devops), support roles อยู่ขวา (designer / qa / reviewer)
@@ -117,6 +129,9 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 
 ### Convention
 
+> **v1 mode:** Pane indexes ใช้กับ `tmux send-keys` เพื่อส่ง task ให้ agent โดยตรง  
+> **v2 mode:** Pane indexes ใช้เพื่ออ้างอิงเท่านั้น — agent panes เป็น log viewers ไม่ใช่ targets สำหรับ task assignment
+
 | ส่วน | รูปแบบ |
 |------|--------|
 | Session name | `dev-team` |
@@ -165,7 +180,7 @@ Agent tool ส่ง result กลับมาโดยตรงเมื่อ 
 
 | Case | Action |
 |------|--------|
-| Agent returns error | Retry once — append error context ใน prompt ใหม่ |
+| Agent returns error | Retry once — append error context ใน prompt ใหม่; ถ้ายังไม่ผ่าน → แจ้งผู้ใช้ พร้อมบอก error detail |
 | Partial failure | Re-spawn เฉพาะ task ที่ failed — ไม่ re-run task ที่ผ่านแล้ว |
 
 ## รับคำสั่งได้ 2 แบบ
