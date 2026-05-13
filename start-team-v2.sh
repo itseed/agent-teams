@@ -59,6 +59,8 @@ Layout (3 columns):
        │ mobile log   │ reviewer log
        │ devops log   │
 
+Agent log panes will show "(waiting for first agent spawn)" until Lead spawns the first agent.
+
 [v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
 EOF
   exit 0
@@ -91,7 +93,7 @@ LEAD_PATH="$SCRIPT_DIR"
 # ──────────────────────────────────────────────────────────────
 mkdir -p "$LOG_DIR"
 for role in "${ROLES[@]}"; do
-  truncate -s 0 "$LOG_DIR/${role}.log"
+  > "$LOG_DIR/${role}.log"
 done
 echo "→ Log dir ready: $LOG_DIR"
 
@@ -176,7 +178,7 @@ inject_lead_context() {
   local paths_str
   paths_str=$(jq -r --arg p "$PROJECT" \
     '.projects[$p].paths | to_entries[] | "  \(.key): \(.value)"' \
-    "$PROJECTS_JSON" 2>/dev/null || true)
+    "$PROJECTS_JSON" 2>/dev/null) || paths_str=""
 
   local msg
   if $RTK_PANE_CREATED; then
