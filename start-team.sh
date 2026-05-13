@@ -140,30 +140,30 @@ tmux set-option -p -t "$SESSION:0.0" @role "Lead"
 tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 
 # 5. Create 3 columns (Lead | middle | right)
-# Agents start in /tmp/agent-<role>/ so Claude reads the specialist CLAUDE.md
-# before any task arrives. Lead injects actual project path per task.
-tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-frontend" "$CLAUDE_CMD"   # pane 1
-tmux split-window -t "$SESSION:0.1" -h -c "/tmp/agent-designer" "$CLAUDE_CMD"   # pane 2
+# Capture stable pane IDs with -P -F '#{pane_id}' so subsequent splits always
+# target the correct pane regardless of how tmux renumbers visual indexes.
+PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-frontend" -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "/tmp/agent-designer" -P -F '#{pane_id}' "$CLAUDE_CMD")
 tmux select-layout -t "$SESSION:0" even-horizontal
 
 # 6. Middle column: 4 equal rows (frontend, backend, mobile, devops)
-tmux split-window -t "$SESSION:0.1" -v -l 75% -c "/tmp/agent-backend" "$CLAUDE_CMD"   # pane 3
-tmux split-window -t "$SESSION:0.3" -v -l 67% -c "/tmp/agent-mobile"  "$CLAUDE_CMD"   # pane 4
-tmux split-window -t "$SESSION:0.4" -v -l 50% -c "/tmp/agent-devops"  "$CLAUDE_CMD"   # pane 5
+PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "/tmp/agent-backend" -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "/tmp/agent-mobile"  -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "/tmp/agent-devops"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 
 # 7. Right column: 3 equal rows (designer, qa, reviewer)
-tmux split-window -t "$SESSION:0.2" -v -l 67% -c "/tmp/agent-qa"       "$CLAUDE_CMD"   # pane 6
-tmux split-window -t "$SESSION:0.6" -v -l 50% -c "/tmp/agent-reviewer" "$CLAUDE_CMD"   # pane 7
+PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD")
 
-# 8. Set @role + @role_color per pane (user option — not affected by program output)
+# 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 #    Dev roles = cool colors, Support roles = warm colors
-tmux set-option -p -t "$SESSION:0.1" @role "Frontend"  ; tmux set-option -p -t "$SESSION:0.1" @role_color "cyan"
-tmux set-option -p -t "$SESSION:0.2" @role "Designer"  ; tmux set-option -p -t "$SESSION:0.2" @role_color "colour211"
-tmux set-option -p -t "$SESSION:0.3" @role "Backend"   ; tmux set-option -p -t "$SESSION:0.3" @role_color "blue"
-tmux set-option -p -t "$SESSION:0.4" @role "Mobile"    ; tmux set-option -p -t "$SESSION:0.4" @role_color "magenta"
-tmux set-option -p -t "$SESSION:0.5" @role "DevOps"    ; tmux set-option -p -t "$SESSION:0.5" @role_color "green"
-tmux set-option -p -t "$SESSION:0.6" @role "QA"        ; tmux set-option -p -t "$SESSION:0.6" @role_color "colour208"
-tmux set-option -p -t "$SESSION:0.7" @role "Reviewer"  ; tmux set-option -p -t "$SESSION:0.7" @role_color "red"
+tmux set-option -p -t "$PANE_FRONTEND" @role "Frontend" ; tmux set-option -p -t "$PANE_FRONTEND" @role_color "cyan"
+tmux set-option -p -t "$PANE_DESIGNER" @role "Designer" ; tmux set-option -p -t "$PANE_DESIGNER" @role_color "colour211"
+tmux set-option -p -t "$PANE_BACKEND"  @role "Backend"  ; tmux set-option -p -t "$PANE_BACKEND"  @role_color "blue"
+tmux set-option -p -t "$PANE_MOBILE"   @role "Mobile"   ; tmux set-option -p -t "$PANE_MOBILE"   @role_color "magenta"
+tmux set-option -p -t "$PANE_DEVOPS"   @role "DevOps"   ; tmux set-option -p -t "$PANE_DEVOPS"   @role_color "green"
+tmux set-option -p -t "$PANE_QA"       @role "QA"       ; tmux set-option -p -t "$PANE_QA"       @role_color "colour208"
+tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t "$PANE_REVIEWER" @role_color "red"
 
 # 9. Auto-answer trust prompt for agent panes (each pane runs in background)
 #    /tmp/agent-<role>/ is a new directory — Claude Code asks once per directory
@@ -180,7 +180,7 @@ auto_trust() {
   done
 }
 
-for _pane in "$SESSION:0.1" "$SESSION:0.2" "$SESSION:0.3" "$SESSION:0.4" "$SESSION:0.5" "$SESSION:0.6" "$SESSION:0.7"; do
+for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_BACKEND" "$PANE_MOBILE" "$PANE_DEVOPS" "$PANE_QA" "$PANE_REVIEWER"; do
   auto_trust "$_pane" &
 done
 
@@ -199,10 +199,10 @@ inject_lead_context() {
 ทีมพร้อมแล้ว — agents รอรับงานใน panes ต่อไปนี้:
 
   Frontend  → dev-team:0.1
-  Designer  → dev-team:0.2
-  Backend   → dev-team:0.3
-  Mobile    → dev-team:0.4
-  DevOps    → dev-team:0.5
+  Backend   → dev-team:0.2
+  Mobile    → dev-team:0.3
+  DevOps    → dev-team:0.4
+  Designer  → dev-team:0.5
   QA        → dev-team:0.6
   Reviewer  → dev-team:0.7
 
