@@ -63,7 +63,6 @@ reviewer → SendMessage(to: "backend-teammate") : แจ้ง security issue
 
 **Lead monitoring:**
 - Teammate messages arrive to Lead automatically
-- Log panes — teammates ยังคง log ลง `/tmp/agent-logs/{role}.log` ตามปกติ
 - Shared task list — `TaskList` เพื่อดูสถานะทุก task
 
 ## Layout ของ tmux session
@@ -160,48 +159,53 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 | Teammate panes | `dev-team:0.1` ถึง `dev-team:0.N` (ขวา) |
 | Pane title | ชื่อ role ขึ้นต้นตัวพิมพ์ใหญ่ เช่น `Frontend`, `Backend`, `Mobile`, `DevOps`, `Designer`, `QA`, `Reviewer` |
 
-### Task lifecycle
+### Development Pipeline (บังคับทุกงาน)
+
+**ห้าม commit หรือแจ้งผู้ใช้ว่าเสร็จก่อนผ่าน QA และ Reviewer ทุกกรณี**
 
 ```
 Lead รับ task
   │
   ▼
-TaskCreate per subtask              (status: pending)
+TaskCreate per subtask
   │
   ▼
-Agent tool spawn                    (inject task_id ใน prompt)
-  ├── parallel ถ้า tasks independent
-  └── sequential ถ้า task B ต้องการ result จาก task A
+[PHASE 1 — DEV] spawn dev agents (parallel ถ้า independent)
+  ├── frontend / backend / mobile / devops ตามที่จำเป็น
+  ├── agents คุยกันผ่าน SendMessage โดยตรง (เช่น backend ส่ง API contract ให้ frontend)
+  └── แต่ละ agent: TaskUpdate(completed) เมื่อเสร็จ
+  │
+  ▼ dev agents ทั้งหมด completed
   │
   ▼
-Agent executes + writes to /tmp/agent-logs/<role>.log
+[PHASE 2 — QA] spawn qa อัตโนมัติ (ไม่ต้องรอ user สั่ง)
+  ├── ส่ง context: paths, endpoints, files ที่ dev เพิ่ง implement
+  ├── qa test → ถ้าพบ bug → SendMessage แจ้ง agent ที่รับผิดชอบโดยตรง (CC Lead)
+  ├── agent แก้ bug → qa re-test
+  └── qa: TaskUpdate(completed) เมื่อ pass ทั้งหมด
   │
-  ├─ success → TaskUpdate(task_id, "completed") + return result
-  └─ error   → TaskUpdate(task_id, "error") + return error detail
+  ▼ QA pass
   │
   ▼
-Lead: ตรวจ TaskList / รับ Agent tool result
-  ├─ all done    → summarize, notify user
-  └─ has errors  → retry once with error context; escalate ถ้ายังไม่ผ่าน
+[PHASE 3 — REVIEW] spawn reviewer อัตโนมัติ (ไม่ต้องรอ user สั่ง)
+  ├── ส่ง context: files ที่เปลี่ยนแปลงทั้งหมด
+  ├── reviewer: Snyk scan + code review (quality, security, performance)
+  ├── ถ้าพบ issue → SendMessage แจ้ง agent โดยตรง → agent แก้ → reviewer re-check
+  └── reviewer: TaskUpdate(completed) เมื่อ approve
+  │
+  ▼ Reviewer approve
+  │
+  ▼
+[PHASE 4 — COMMIT] Lead commit & push → แจ้งผู้ใช้
 ```
-
-### วิธี collect results
-
-Agent tool ส่ง result กลับมาโดยตรงเมื่อ subagent เสร็จ — ไม่ต้องรัน `tmux capture-pane`
-
-ถ้าต้องการดู live progress ให้ดูที่ tmux log-viewer panes (tail `/tmp/agent-logs/<role>.log`)
-
-### Peer communication (sequential handoff)
-
-1. Agent A เสร็จ → ส่ง result กลับมา Lead
-2. Lead inject result ของ Agent A เป็น context ตอน spawn Agent B
-3. ไม่มี realtime messaging ระหว่าง concurrent agents
 
 ### Error handling
 
 | Case | Action |
 |------|--------|
 | Agent returns error | Retry once — append error context ใน prompt ใหม่; ถ้ายังไม่ผ่าน → แจ้งผู้ใช้ พร้อมบอก error detail |
+| QA พบ bug | QA SendMessage แจ้ง agent ที่รับผิดชอบโดยตรง — Lead monitor |
+| Reviewer request changes | Reviewer SendMessage แจ้ง agent โดยตรง — Lead monitor |
 | Partial failure | Re-spawn เฉพาะ task ที่ failed — ไม่ re-run task ที่ผ่านแล้ว |
 
 ## รับคำสั่งได้ 2 แบบ
@@ -225,7 +229,8 @@ Agent tool ส่ง result กลับมาโดยตรงเมื่อ 
 
 ## เมื่องานเสร็จ
 
-สรุปผลลัพธ์จากทุก teammate แล้วแจ้งผู้ใช้ก่อน cleanup
+"เสร็จ" หมายถึงผ่าน QA + Reviewer approve + commit แล้วเท่านั้น
+สรุปผลลัพธ์จากทุก phase แล้วแจ้งผู้ใช้ จากนั้น shutdown teammates ทั้งหมด
 
 ## บทเรียนจากการใช้งาน (อย่าทำซ้ำ)
 
