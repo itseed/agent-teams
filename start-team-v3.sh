@@ -186,10 +186,21 @@ MSG
 }
 inject_lead_context &
 
-# RTK Stats pane (optional) — split below Lead in left column
+# Step 1: สร้าง right-column "agent zone" ก่อน (horizontal split จาก Lead)
+# ทำให้ tmux layout tree ล็อก left column = Lead เท่านั้น
+# เมื่อ Agent Teams spawn ใหม่ จะ split จาก right column ไม่กระทบ Lead/RTK
+PANE_AGENT_ZONE=$(tmux split-window -t "$SESSION:0.0" -h -l 67% -c "$LEAD_PATH" \
+  -P -F '#{pane_id}' 'cat' 2>/dev/null) || PANE_AGENT_ZONE=""
+if [[ -n "${PANE_AGENT_ZONE:-}" ]]; then
+  tmux set-option -p -t "$PANE_AGENT_ZONE" @role "Agents"
+  tmux set-option -p -t "$PANE_AGENT_ZONE" @role_color "colour240"
+fi
+
+# Step 2: สร้าง RTK ใต้ Lead (vertical split จาก Lead — อยู่ใน left column เสมอ)
+# ต้องสร้างหลัง right column เพื่อให้ layout tree ถูกต้อง
 RTK_PANE_CREATED=false
 if command -v rtk >/dev/null 2>&1; then
-  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' \
+  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 25% -c ~ -P -F '#{pane_id}' \
     'while true; do clear; rtk gain 2>/dev/null || echo "(rtk unavailable)"; sleep 30; done' 2>/dev/null) || true
   if [[ -n "${PANE_RTK:-}" ]]; then
     tmux set-option -p -t "$PANE_RTK" @role "RTK Stats"
@@ -198,7 +209,7 @@ if command -v rtk >/dev/null 2>&1; then
   fi
 fi
 
-# Focus Lead
+# Focus Lead (ไม่ใช่ agent zone หรือ RTK)
 tmux select-pane -t "$SESSION:0.0"
 
 # ──────────────────────────────────────────────────────────────
@@ -208,10 +219,12 @@ cat <<EOF
 
 ✓ Session '$SESSION' ready (v3 Agent Teams native mode).
 
-  Lead → $SESSION:0.0  ($LEAD_PATH)
+  Lead      → $SESSION:0.0  (left top)
+  RTK Stats → below Lead    (left bottom, stays fixed)
+  Agents    → right column  (Agent Teams spawns here)
 
-When Lead calls TeamCreate, Agent Teams spawns Claude Code processes
-as new panes automatically — no pre-built log viewers.
+Layout: [Lead | Agents...]
+        [RTK  |           ]
 
 Settings: teammateMode=tmux + CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 
