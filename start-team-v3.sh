@@ -131,6 +131,8 @@ fi
 echo "→ Spawning session '$SESSION' (v3 Agent Teams native mode)..."
 
 tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$CLAUDE_CMD"
+tmux rename-window -t "$SESSION:0" "main"
+tmux set-option -wg -t "$SESSION:0" automatic-rename off
 
 # Mouse support
 tmux set-option -g -t "$SESSION" mouse on
