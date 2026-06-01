@@ -30,7 +30,9 @@ fi
 SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
+# Dev roles: Sonnet (write feature code) | Support roles: Haiku (read/analyze/test)
 CLAUDE_CMD="claude --dangerously-skip-permissions; read"
+CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 # ──────────────────────────────────────────────────────────────
 # Help
@@ -171,17 +173,17 @@ tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 # Capture stable pane IDs with -P -F '#{pane_id}' so subsequent splits always
 # target the correct pane regardless of how tmux renumbers visual indexes.
 PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-frontend" -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "/tmp/agent-designer" -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "/tmp/agent-designer" -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
 tmux select-layout -t "$SESSION:0" even-horizontal
 
-# 6. Middle column: 4 equal rows (frontend, backend, mobile, devops)
+# 6. Middle column: 4 equal rows (frontend, backend, mobile, devops) — Sonnet
 PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "/tmp/agent-backend" -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "/tmp/agent-mobile"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "/tmp/agent-devops"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 
-# 7. Right column: 3 equal rows (designer, qa, reviewer)
-PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD")
+# 7. Right column: 3 equal rows (designer, qa, reviewer) — Haiku
+PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
+PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
 
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 #    Dev roles = cool colors, Support roles = warm colors
