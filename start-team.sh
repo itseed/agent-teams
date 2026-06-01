@@ -30,7 +30,9 @@ fi
 SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
+# Dev roles: Sonnet (write feature code) | Support roles: Haiku (read/analyze/test)
 CLAUDE_CMD="claude --dangerously-skip-permissions; read"
+CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 # ──────────────────────────────────────────────────────────────
 # Help
@@ -83,6 +85,16 @@ LEAD_PATH="$SCRIPT_DIR"
 # ──────────────────────────────────────────────────────────────
 create_agent_dirs() {
   local roles=(frontend designer backend mobile devops qa reviewer)
+
+  # Build project context to inject into every agent's CLAUDE.md
+  local proj_description
+  proj_description=$(jq -r --arg p "$PROJECT" '.projects[$p].description // ""' "$PROJECTS_JSON" 2>/dev/null || true)
+
+  local proj_paths_md
+  proj_paths_md=$(jq -r --arg p "$PROJECT" \
+    '.projects[$p].paths | to_entries[] | "- **\(.key)**: \(.value)"' \
+    "$PROJECTS_JSON" 2>/dev/null || true)
+
   for role in "${roles[@]}"; do
     local dir="/tmp/agent-${role}"
     local src="$SCRIPT_DIR/.claude/agents/${role}.md"
@@ -90,6 +102,25 @@ create_agent_dirs() {
     [[ -f "$src" ]] || continue
     # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
     awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
+
+    # Append project context so agents know where the codebase lives on every new session
+    cat >> "$dir/CLAUDE.md" <<CONTEXT
+
+---
+
+## Active Project: $PROJECT
+${proj_description:+$proj_description$'\n'}
+### Project Paths
+$proj_paths_md
+
+### สิ่งที่ต้องทำเมื่อเริ่ม session ใหม่
+ก่อนรับงานแรก ให้อ่านไฟล์เหล่านี้ในแต่ละ path ที่เกี่ยวข้องกับ role ของคุณ:
+- \`CLAUDE.md\` — conventions, architecture, คำสั่ง dev ของ project
+- \`README.md\` — overview และ setup
+- \`DESIGN.md\` — design system, tokens, UX guidelines (ถ้ามี)
+
+หลังอ่านแล้วรอรับ task จาก Lead ได้เลย
+CONTEXT
   done
 }
 
@@ -143,17 +174,17 @@ tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 # Capture stable pane IDs with -P -F '#{pane_id}' so subsequent splits always
 # target the correct pane regardless of how tmux renumbers visual indexes.
 PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-frontend" -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "/tmp/agent-designer" -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "/tmp/agent-designer" -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
 tmux select-layout -t "$SESSION:0" even-horizontal
 
-# 6. Middle column: 4 equal rows (frontend, backend, mobile, devops)
+# 6. Middle column: 4 equal rows (frontend, backend, mobile, devops) — Sonnet
 PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "/tmp/agent-backend" -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "/tmp/agent-mobile"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "/tmp/agent-devops"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 
-# 7. Right column: 3 equal rows (designer, qa, reviewer)
-PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD")
+# 7. Right column: 3 equal rows (designer, qa, reviewer) — Haiku
+PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
+PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
 
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 #    Dev roles = cool colors, Support roles = warm colors
@@ -192,6 +223,41 @@ auto_trust() {
 for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_BACKEND" "$PANE_MOBILE" "$PANE_DEVOPS" "$PANE_QA" "$PANE_REVIEWER"; do
   auto_trust "$_pane" &
 done
+
+# 10a. Patch pane mapping in each agent's CLAUDE.md with actual visual indexes
+#       Must run after all panes are created so indexes are stable.
+#       Appends an "override" section that takes precedence over any hardcoded table.
+patch_pane_maps() {
+  local idx_lead idx_frontend idx_designer idx_backend idx_mobile idx_devops idx_qa idx_reviewer
+  idx_lead=$(tmux display-message     -t "$SESSION:0.0"   -p '#{pane_index}')
+  idx_frontend=$(tmux display-message -t "$PANE_FRONTEND" -p '#{pane_index}')
+  idx_designer=$(tmux display-message -t "$PANE_DESIGNER" -p '#{pane_index}')
+  idx_backend=$(tmux display-message  -t "$PANE_BACKEND"  -p '#{pane_index}')
+  idx_mobile=$(tmux display-message   -t "$PANE_MOBILE"   -p '#{pane_index}')
+  idx_devops=$(tmux display-message   -t "$PANE_DEVOPS"   -p '#{pane_index}')
+  idx_qa=$(tmux display-message       -t "$PANE_QA"       -p '#{pane_index}')
+  idx_reviewer=$(tmux display-message -t "$PANE_REVIEWER" -p '#{pane_index}')
+
+  for role in frontend designer backend mobile devops qa reviewer; do
+    cat >> "/tmp/agent-${role}/CLAUDE.md" <<MAP
+
+---
+
+## Pane Addresses (actual — ใช้แทน hardcoded mapping ด้านบน)
+| Role     | Pane                          |
+|----------|-------------------------------|
+| Lead     | \`$SESSION:0.${idx_lead}\`     |
+| frontend | \`$SESSION:0.${idx_frontend}\` |
+| designer | \`$SESSION:0.${idx_designer}\` |
+| backend  | \`$SESSION:0.${idx_backend}\`  |
+| mobile   | \`$SESSION:0.${idx_mobile}\`   |
+| devops   | \`$SESSION:0.${idx_devops}\`   |
+| qa       | \`$SESSION:0.${idx_qa}\`       |
+| reviewer | \`$SESSION:0.${idx_reviewer}\` |
+MAP
+  done
+}
+patch_pane_maps
 
 # 10. Inject startup context to Lead (runs in background so attach isn't blocked)
 inject_lead_context() {
