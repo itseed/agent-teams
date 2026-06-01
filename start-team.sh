@@ -83,6 +83,16 @@ LEAD_PATH="$SCRIPT_DIR"
 # ──────────────────────────────────────────────────────────────
 create_agent_dirs() {
   local roles=(frontend designer backend mobile devops qa reviewer)
+
+  # Build project context to inject into every agent's CLAUDE.md
+  local proj_description
+  proj_description=$(jq -r --arg p "$PROJECT" '.projects[$p].description // ""' "$PROJECTS_JSON" 2>/dev/null || true)
+
+  local proj_paths_md
+  proj_paths_md=$(jq -r --arg p "$PROJECT" \
+    '.projects[$p].paths | to_entries[] | "- **\(.key)**: \(.value)"' \
+    "$PROJECTS_JSON" 2>/dev/null || true)
+
   for role in "${roles[@]}"; do
     local dir="/tmp/agent-${role}"
     local src="$SCRIPT_DIR/.claude/agents/${role}.md"
@@ -90,6 +100,24 @@ create_agent_dirs() {
     [[ -f "$src" ]] || continue
     # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
     awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
+
+    # Append project context so agents know where the codebase lives on every new session
+    cat >> "$dir/CLAUDE.md" <<CONTEXT
+
+---
+
+## Active Project: $PROJECT
+${proj_description:+$proj_description$'\n'}
+### Project Paths
+$proj_paths_md
+
+### สิ่งที่ต้องทำเมื่อเริ่ม session ใหม่
+ก่อนรับงานแรก ให้อ่านไฟล์เหล่านี้ในแต่ละ path ที่เกี่ยวข้องกับ role ของคุณ:
+- \`CLAUDE.md\` — conventions, architecture, คำสั่ง dev ของ project
+- \`README.md\` — overview และ setup
+
+หลังอ่านแล้วรอรับ task จาก Lead ได้เลย
+CONTEXT
   done
 }
 
@@ -192,6 +220,65 @@ auto_trust() {
 for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_BACKEND" "$PANE_MOBILE" "$PANE_DEVOPS" "$PANE_QA" "$PANE_REVIEWER"; do
   auto_trust "$_pane" &
 done
+
+# 10a. Inject codebase onboarding to each agent pane
+#      Waits for Claude prompt then sends a one-time read instruction so agents
+#      actively load project context before receiving their first task.
+inject_agent_onboarding() {
+  local pane="$1"
+  local role="$2"
+  local paths_hint="$3"   # human-readable hint, e.g. "web: /path/to/web"
+
+  # Wait for Claude prompt (max 60s)
+  local i=0
+  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "❯|bypass permissions"; do
+    sleep 1; ((i++)); [[ $i -gt 60 ]] && return
+  done
+
+  local msg
+  msg=$(cat <<MSG
+[ONBOARDING — อ่านทำความเข้าใจ codebase ก่อนรับงาน]
+
+project: $PROJECT
+paths ที่เกี่ยวกับ role ของคุณ:
+$paths_hint
+
+กรุณาอ่าน CLAUDE.md และ README.md ใน path ข้างต้น เพื่อทำความเข้าใจโครงสร้าง codebase, conventions, และคำสั่ง dev ที่ใช้ หลังอ่านเสร็จให้ตอบสั้นๆ ว่าเข้าใจ project แล้ว แล้วรอรับ task จาก Lead ได้เลย
+MSG
+)
+
+  tmux set-buffer "$msg" && tmux paste-buffer -t "$pane" && sleep 0.5 && tmux send-keys -t "$pane" Enter
+}
+
+# Build per-role path hints from projects.json
+get_path_hint() {
+  local role="$1"
+  local all_paths
+  all_paths=$(jq -r --arg p "$PROJECT" \
+    '.projects[$p].paths | to_entries[] | "\(.key): \(.value)"' \
+    "$PROJECTS_JSON" 2>/dev/null || true)
+
+  case "$role" in
+    frontend|designer) jq -r --arg p "$PROJECT" \
+      '.projects[$p].paths | to_entries[] | select(.key | test("web|front|client|ui")) | "\(.key): \(.value)"' \
+      "$PROJECTS_JSON" 2>/dev/null | grep . || echo "$all_paths" ;;
+    backend)           jq -r --arg p "$PROJECT" \
+      '.projects[$p].paths | to_entries[] | select(.key | test("api|back|server|service")) | "\(.key): \(.value)"' \
+      "$PROJECTS_JSON" 2>/dev/null | grep . || echo "$all_paths" ;;
+    mobile)            jq -r --arg p "$PROJECT" \
+      '.projects[$p].paths | to_entries[] | select(.key | test("mobile|app|native")) | "\(.key): \(.value)"' \
+      "$PROJECTS_JSON" 2>/dev/null | grep . || echo "$all_paths" ;;
+    *)                 echo "$all_paths" ;;  # devops, qa, reviewer ได้ทุก path
+  esac
+}
+
+inject_agent_onboarding "$PANE_FRONTEND" "frontend" "$(get_path_hint frontend)" &
+inject_agent_onboarding "$PANE_DESIGNER" "designer" "$(get_path_hint designer)" &
+inject_agent_onboarding "$PANE_BACKEND"  "backend"  "$(get_path_hint backend)"  &
+inject_agent_onboarding "$PANE_MOBILE"   "mobile"   "$(get_path_hint mobile)"   &
+inject_agent_onboarding "$PANE_DEVOPS"   "devops"   "$(get_path_hint devops)"   &
+inject_agent_onboarding "$PANE_QA"       "qa"       "$(get_path_hint qa)"       &
+inject_agent_onboarding "$PANE_REVIEWER" "reviewer" "$(get_path_hint reviewer)" &
 
 # 10. Inject startup context to Lead (runs in background so attach isn't blocked)
 inject_lead_context() {
