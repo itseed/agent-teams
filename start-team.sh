@@ -280,6 +280,41 @@ get_path_hint() {
   esac
 }
 
+# 10b. Patch pane mapping in each agent's CLAUDE.md with actual visual indexes
+#       Must run after all panes are created so indexes are stable.
+#       Appends an "override" section that takes precedence over any hardcoded table.
+patch_pane_maps() {
+  local idx_lead idx_frontend idx_designer idx_backend idx_mobile idx_devops idx_qa idx_reviewer
+  idx_lead=$(tmux display-message     -t "$SESSION:0.0"   -p '#{pane_index}')
+  idx_frontend=$(tmux display-message -t "$PANE_FRONTEND" -p '#{pane_index}')
+  idx_designer=$(tmux display-message -t "$PANE_DESIGNER" -p '#{pane_index}')
+  idx_backend=$(tmux display-message  -t "$PANE_BACKEND"  -p '#{pane_index}')
+  idx_mobile=$(tmux display-message   -t "$PANE_MOBILE"   -p '#{pane_index}')
+  idx_devops=$(tmux display-message   -t "$PANE_DEVOPS"   -p '#{pane_index}')
+  idx_qa=$(tmux display-message       -t "$PANE_QA"       -p '#{pane_index}')
+  idx_reviewer=$(tmux display-message -t "$PANE_REVIEWER" -p '#{pane_index}')
+
+  for role in frontend designer backend mobile devops qa reviewer; do
+    cat >> "/tmp/agent-${role}/CLAUDE.md" <<MAP
+
+---
+
+## Pane Addresses (actual — ใช้แทน hardcoded mapping ด้านบน)
+| Role     | Pane                          |
+|----------|-------------------------------|
+| Lead     | \`$SESSION:0.${idx_lead}\`     |
+| frontend | \`$SESSION:0.${idx_frontend}\` |
+| designer | \`$SESSION:0.${idx_designer}\` |
+| backend  | \`$SESSION:0.${idx_backend}\`  |
+| mobile   | \`$SESSION:0.${idx_mobile}\`   |
+| devops   | \`$SESSION:0.${idx_devops}\`   |
+| qa       | \`$SESSION:0.${idx_qa}\`       |
+| reviewer | \`$SESSION:0.${idx_reviewer}\` |
+MAP
+  done
+}
+patch_pane_maps
+
 inject_agent_onboarding "$PANE_FRONTEND" "frontend" "$(get_path_hint frontend)" &
 inject_agent_onboarding "$PANE_DESIGNER" "designer" "$(get_path_hint designer)" &
 inject_agent_onboarding "$PANE_BACKEND"  "backend"  "$(get_path_hint backend)"  &
