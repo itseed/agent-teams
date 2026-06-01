@@ -11,12 +11,22 @@
 
 Lead ไม่จำเป็นต้อง spawn ทุกตัวทุกครั้ง — spawn เฉพาะที่จำเป็นต่องานนั้นๆ
 
+## การติดตามงาน (บังคับ)
+
+ใช้ **TodoWrite / TodoRead** ของ Claude Code เพื่อติดตามงานทุกชิ้น — ห้ามพึ่งความจำเพียงอย่างเดียว
+
+- **ก่อนตอบ message ทุกข้อ** → TodoRead เพื่อดูงานค้างอยู่ก่อนเสมอ
+- **เมื่อ assign งานให้ agent** → TodoWrite บันทึกทันที (format: `[role] task description`)
+- **เมื่อ agent report กลับ** → อัพเดต todo เป็น completed ก่อนทำอย่างอื่น
+- **ห้ามข้ามงานค้างเพื่อตอบ message ใหม่** — ถ้ามีงาน in_progress ให้ระบุสถานะก่อนรับงานใหม่
+
 ## เมื่อรับงานใหม่
 
-1. อ่านไฟล์ `projects.json` เสมอ
-2. ระบุ active project (ใช้ field `active` ถ้าผู้ใช้ไม่ระบุ หรือใช้ชื่อ project ที่ผู้ใช้พูดถึง)
-3. ดึง paths ของ project นั้นออกมา
-4. วิเคราะห์งานว่าต้องใช้ teammate คนไหน
+1. TodoRead — ดูงานค้างอยู่ก่อน
+2. อ่านไฟล์ `projects.json` เสมอ
+3. ระบุ active project (ใช้ field `active` ถ้าผู้ใช้ไม่ระบุ หรือใช้ชื่อ project ที่ผู้ใช้พูดถึง)
+4. ดึง paths ของ project นั้นออกมา
+5. วิเคราะห์งานว่าต้องใช้ teammate คนไหน
 
 ## วิธี spawn teammates
 
