@@ -117,6 +117,7 @@ $proj_paths_md
 ก่อนรับงานแรก ให้อ่านไฟล์เหล่านี้ในแต่ละ path ที่เกี่ยวข้องกับ role ของคุณ:
 - \`CLAUDE.md\` — conventions, architecture, คำสั่ง dev ของ project
 - \`README.md\` — overview และ setup
+- \`DESIGN.md\` — design system, tokens, UX guidelines (ถ้ามี)
 
 หลังอ่านแล้วรอรับ task จาก Lead ได้เลย
 CONTEXT
@@ -245,7 +246,12 @@ project: $PROJECT
 paths ที่เกี่ยวกับ role ของคุณ:
 $paths_hint
 
-กรุณาอ่าน CLAUDE.md และ README.md ใน path ข้างต้น เพื่อทำความเข้าใจโครงสร้าง codebase, conventions, และคำสั่ง dev ที่ใช้ หลังอ่านเสร็จให้ตอบสั้นๆ ว่าเข้าใจ project แล้ว แล้วรอรับ task จาก Lead ได้เลย
+กรุณาอ่านไฟล์เหล่านี้ใน path ข้างต้น (ถ้ามี) เพื่อทำความเข้าใจ codebase ก่อนรับงาน:
+- CLAUDE.md — conventions, architecture, คำสั่ง dev
+- README.md — overview และ setup
+- DESIGN.md — design system, tokens, UX guidelines
+
+หลังอ่านเสร็จให้ตอบสั้นๆ ว่าเข้าใจ project แล้ว แล้วรอรับ task จาก Lead ได้เลย
 MSG
 )
 
