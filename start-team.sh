@@ -224,63 +224,7 @@ for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_BACKEND" "$PANE_MOBILE" "$
   auto_trust "$_pane" &
 done
 
-# 10a. Inject codebase onboarding to each agent pane
-#      Waits for Claude prompt then sends a one-time read instruction so agents
-#      actively load project context before receiving their first task.
-inject_agent_onboarding() {
-  local pane="$1"
-  local role="$2"
-  local paths_hint="$3"   # human-readable hint, e.g. "web: /path/to/web"
-
-  # Wait for Claude prompt (max 60s)
-  local i=0
-  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "❯|bypass permissions"; do
-    sleep 1; ((i++)); [[ $i -gt 60 ]] && return
-  done
-
-  local msg
-  msg=$(cat <<MSG
-[ONBOARDING — อ่านทำความเข้าใจ codebase ก่อนรับงาน]
-
-project: $PROJECT
-paths ที่เกี่ยวกับ role ของคุณ:
-$paths_hint
-
-กรุณาอ่านไฟล์เหล่านี้ใน path ข้างต้น (ถ้ามี) เพื่อทำความเข้าใจ codebase ก่อนรับงาน:
-- CLAUDE.md — conventions, architecture, คำสั่ง dev
-- README.md — overview และ setup
-- DESIGN.md — design system, tokens, UX guidelines
-
-หลังอ่านเสร็จให้ตอบสั้นๆ ว่าเข้าใจ project แล้ว แล้วรอรับ task จาก Lead ได้เลย
-MSG
-)
-
-  tmux set-buffer "$msg" && tmux paste-buffer -t "$pane" && sleep 0.5 && tmux send-keys -t "$pane" Enter
-}
-
-# Build per-role path hints from projects.json
-get_path_hint() {
-  local role="$1"
-  local all_paths
-  all_paths=$(jq -r --arg p "$PROJECT" \
-    '.projects[$p].paths | to_entries[] | "\(.key): \(.value)"' \
-    "$PROJECTS_JSON" 2>/dev/null || true)
-
-  case "$role" in
-    frontend|designer) jq -r --arg p "$PROJECT" \
-      '.projects[$p].paths | to_entries[] | select(.key | test("web|front|client|ui")) | "\(.key): \(.value)"' \
-      "$PROJECTS_JSON" 2>/dev/null | grep . || echo "$all_paths" ;;
-    backend)           jq -r --arg p "$PROJECT" \
-      '.projects[$p].paths | to_entries[] | select(.key | test("api|back|server|service")) | "\(.key): \(.value)"' \
-      "$PROJECTS_JSON" 2>/dev/null | grep . || echo "$all_paths" ;;
-    mobile)            jq -r --arg p "$PROJECT" \
-      '.projects[$p].paths | to_entries[] | select(.key | test("mobile|app|native")) | "\(.key): \(.value)"' \
-      "$PROJECTS_JSON" 2>/dev/null | grep . || echo "$all_paths" ;;
-    *)                 echo "$all_paths" ;;  # devops, qa, reviewer ได้ทุก path
-  esac
-}
-
-# 10b. Patch pane mapping in each agent's CLAUDE.md with actual visual indexes
+# 10a. Patch pane mapping in each agent's CLAUDE.md with actual visual indexes
 #       Must run after all panes are created so indexes are stable.
 #       Appends an "override" section that takes precedence over any hardcoded table.
 patch_pane_maps() {
@@ -314,14 +258,6 @@ MAP
   done
 }
 patch_pane_maps
-
-inject_agent_onboarding "$PANE_FRONTEND" "frontend" "$(get_path_hint frontend)" &
-inject_agent_onboarding "$PANE_DESIGNER" "designer" "$(get_path_hint designer)" &
-inject_agent_onboarding "$PANE_BACKEND"  "backend"  "$(get_path_hint backend)"  &
-inject_agent_onboarding "$PANE_MOBILE"   "mobile"   "$(get_path_hint mobile)"   &
-inject_agent_onboarding "$PANE_DEVOPS"   "devops"   "$(get_path_hint devops)"   &
-inject_agent_onboarding "$PANE_QA"       "qa"       "$(get_path_hint qa)"       &
-inject_agent_onboarding "$PANE_REVIEWER" "reviewer" "$(get_path_hint reviewer)" &
 
 # 10. Inject startup context to Lead (runs in background so attach isn't blocked)
 inject_lead_context() {
