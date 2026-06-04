@@ -98,10 +98,12 @@ create_agent_dirs() {
   for role in "${roles[@]}"; do
     local dir="/tmp/agent-${role}"
     local src="$SCRIPT_DIR/.claude/agents/${role}.md"
-    mkdir -p "$dir"
+    mkdir -p "$dir" "$dir/.claude"
     [[ -f "$src" ]] || continue
     # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
     awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
+    # Enable auto-compact so agents don't hang at 100% context
+    echo '{"autoCompactEnabled":true}' > "$dir/.claude/settings.json"
 
     # Append project context so agents know where the codebase lives on every new session
     cat >> "$dir/CLAUDE.md" <<CONTEXT
@@ -199,7 +201,8 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 # 9b. RTK Stats pane (optional — only if rtk is installed)
 RTK_PANE_CREATED=false
 if command -v rtk >/dev/null 2>&1; then
-  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' 'watch -n 30 rtk gain')
+  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' \
+    'bash -c "while true; do clear; rtk gain 2>/dev/null; sleep 30; done"')
   tmux set-option -p -t "$PANE_RTK" @role "RTK Stats"
   tmux set-option -p -t "$PANE_RTK" @role_color "colour46"
   RTK_PANE_CREATED=true
