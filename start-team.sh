@@ -200,7 +200,9 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 
 # 9b. RTK Stats pane (optional — only if rtk is installed)
 RTK_PANE_CREATED=false
+RTK_INSTALLED="no"
 if command -v rtk >/dev/null 2>&1; then
+  RTK_INSTALLED="yes"
   PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' \
     'bash -c "while true; do clear; rtk gain 2>/dev/null; sleep 30; done"')
   tmux set-option -p -t "$PANE_RTK" @role "RTK Stats"
@@ -262,6 +264,42 @@ MAP
 }
 patch_pane_maps
 
+# 10b. Initialize .team-state.md with verified pane IDs
+init_team_state() {
+  local session_ts
+  session_ts=$(date '+%Y-%m-%d %H:%M')
+
+  cat > "$SCRIPT_DIR/.team-state.md" <<STATE
+# Team State
+_Updated: ${session_ts}_
+_RTK: ${RTK_INSTALLED}_
+
+## Active Project
+[Lead ต้อง set หลังอ่าน projects.json]
+
+## Agents in Panes
+| Role     | Pane ID            | Status | Current Task |
+|----------|--------------------|--------|--------------|
+| frontend | ${PANE_FRONTEND}   | idle   | —            |
+| backend  | ${PANE_BACKEND}    | idle   | —            |
+| mobile   | ${PANE_MOBILE}     | idle   | —            |
+| devops   | ${PANE_DEVOPS}     | idle   | —            |
+| designer | ${PANE_DESIGNER}   | idle   | —            |
+| qa       | ${PANE_QA}         | idle   | —            |
+| reviewer | ${PANE_REVIEWER}   | idle   | —            |
+
+## Pipeline Stage
+ยังไม่เริ่ม
+
+## Recently Completed
+(ยังไม่มี)
+
+## Notes
+Session เริ่มใหม่ — Lead ต้อง set Active Project ก่อนรับงาน
+STATE
+}
+init_team_state
+
 # 10. Inject startup context to Lead (runs in background so attach isn't blocked)
 inject_lead_context() {
   local pane="$SESSION:0.0"
@@ -289,6 +327,10 @@ inject_lead_context() {
 project: $PROJECT
 $paths_str
 
+.team-state.md ถูกสร้างแล้วใน agent-teams/ พร้อม Pane IDs จริง
+→ ใช้ Pane ID จาก .team-state.md เสมอ ห้ามใช้ numeric index
+→ ตั้งค่า Active Project ใน .team-state.md ก่อนรับงานแรก
+
 ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
 MSG
 )
@@ -306,6 +348,10 @@ MSG
 
 project: $PROJECT
 $paths_str
+
+.team-state.md ถูกสร้างแล้วใน agent-teams/ พร้อม Pane IDs จริง
+→ ใช้ Pane ID จาก .team-state.md เสมอ ห้ามใช้ numeric index
+→ ตั้งค่า Active Project ใน .team-state.md ก่อนรับงานแรก
 
 ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
 MSG
