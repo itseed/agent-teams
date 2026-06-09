@@ -14,5 +14,17 @@
       "Bash(pnpm *)",
       "Bash(tmux *)"
     ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f .team-state.md ]; then echo '=== TEAM STATE ===' && cat .team-state.md; else echo '[WARNING] .team-state.md not found — run start-team.sh first'; fi"
+          }
+        ]
+      }
+    ]
   }
 }
