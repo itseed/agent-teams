@@ -50,6 +50,16 @@ tmux set-buffer "[qa → backend] พบ bug: POST /auth/login คืน 500 เ
 tmux set-buffer "[qa → backend] พบ bug: POST /auth/login คืน 500 เมื่อ email มี uppercase — expected 400 validation error" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
 ```
 
+## ตอบรับงานทันที (ack — บังคับ)
+
+ทันทีที่ได้รับ task จาก Lead **ส่ง ack กลับก่อนเริ่มทำงานทุกครั้ง** เพื่อยืนยันว่า prompt มาถึง + เข้าใจ scope (กัน fire-and-forget / prompt ค้างใน input box):
+
+```bash
+tmux set-buffer "qa รับงานแล้ว: <สรุป task 1 บรรทัด> — เริ่มทำ" && tmux paste-buffer -t dev-team:0.0 && sleep 0.5 && tmux send-keys -t dev-team:0.0 Enter
+```
+
+ถ้า scope ไม่ชัด/requirement หาย → **ถามกลับก่อน อย่าเดาแล้วลงมือ**
+
 ## การรายงานกลับเมื่อเสร็จ (บังคับ)
 
 เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:
