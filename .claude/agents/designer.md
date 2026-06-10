@@ -74,3 +74,18 @@ tmux set-buffer "designer เสร็จแล้ว" && tmux paste-buffer -t d
 ```
 
 นี่คือวิธีเดียวที่ Lead จะรู้ว่างานเสร็จ — ห้ามละเว้นไม่ว่ากรณีใด
+
+## v2 mode — เขียน progress log (เมื่อถูก spawn ผ่าน Agent tool)
+
+> ใช้เฉพาะเมื่อรันด้วย `start-team-v2.sh` — คุณถูก spawn เป็น subagent ผ่าน Agent tool และ tmux pane แสดง `tail -f /tmp/agent-logs/designer.log` แบบ real-time
+> (v1 mode/tmux paste ไม่ต้องทำส่วนนี้ — ใช้ ack + report-back ด้านบนแทน)
+
+เขียน progress ลงไฟล์ตลอดการทำงานเพื่อให้เห็นใน pane:
+
+```bash
+echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/designer.log
+echo "[designer] กำลังทำ <step>" >> /tmp/agent-logs/designer.log
+echo "[designer] ✓ เสร็จ: <summary>" >> /tmp/agent-logs/designer.log
+```
+
+ใน v2 mode รายงานผลกลับ Lead ผ่าน **return value ของ Agent tool** (ไม่ใช่ tmux) — แต่ยังต้องเขียน log เพื่อ visibility
