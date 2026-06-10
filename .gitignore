@@ -8,3 +8,5 @@ docs/superpowers/*
 !docs/superpowers/specs/
 !docs/superpowers/plans/
 .team-state.md
+.mcp.json
+.DS_Store
