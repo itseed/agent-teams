@@ -37,6 +37,9 @@ PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 CLAUDE_CMD="claude --dangerously-skip-permissions; read"
 LOG_DIR="/tmp/agent-logs"
 ROLES=(frontend backend mobile devops designer qa reviewer)
+# Robust per-role log viewer: follows <role>*.log (รวมไฟล์ชื่อเพี้ยนที่ agent สร้าง)
+# แทน `tail -f <role>.log` แบบ exact-name ที่พลาดเมื่อ sub-agent เขียนชื่อไฟล์ไม่ตรง
+LOG_PANE="$SCRIPT_DIR/scripts/log-pane.sh"
 
 # ──────────────────────────────────────────────────────────────
 # Help
@@ -140,18 +143,18 @@ tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 RTK_PANE_CREATED=false
 
 # 5. Create 3 columns (Lead | middle | right) using log-viewer panes
-PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/frontend.log")
-PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/designer.log")
+PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' frontend '$LOG_DIR'")
+PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' designer '$LOG_DIR'")
 tmux select-layout -t "$SESSION:0" even-horizontal
 
 # 6. Middle column: 4 rows (frontend, backend, mobile, devops)
-PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/backend.log")
-PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/mobile.log")
-PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/devops.log")
+PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' backend '$LOG_DIR'")
+PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' mobile '$LOG_DIR'")
+PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' devops '$LOG_DIR'")
 
 # 7. Right column: 3 rows (designer, qa, reviewer)
-PANE_QA=$(tmux split-window -t "$PANE_DESIGNER"  -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/qa.log")
-PANE_REVIEWER=$(tmux split-window -t "$PANE_QA"  -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "tail -n 200 -f $LOG_DIR/reviewer.log")
+PANE_QA=$(tmux split-window -t "$PANE_DESIGNER"  -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' qa '$LOG_DIR'")
+PANE_REVIEWER=$(tmux split-window -t "$PANE_QA"  -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' reviewer '$LOG_DIR'")
 
 # 8. Set @role + @role_color per pane using stable IDs
 tmux set-option -p -t "$PANE_FRONTEND" @role "Frontend log" ; tmux set-option -p -t "$PANE_FRONTEND" @role_color "cyan"
