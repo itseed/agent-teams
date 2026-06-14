@@ -30,8 +30,10 @@ fi
 SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
-# Dev roles: Sonnet (write feature code) | Support roles: Haiku (read/analyze/test)
-CLAUDE_CMD="claude --dangerously-skip-permissions; read"
+# Model tiers (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
+#   Sonnet — frontend, backend, mobile, devops, qa, reviewer (เขียน/วิเคราะห์/หา edge case/security)
+#   Haiku  — designer (เขียน design spec เป็นหลัก)
+CLAUDE_CMD="claude --model claude-sonnet-4-6 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 # ──────────────────────────────────────────────────────────────
@@ -98,10 +100,12 @@ create_agent_dirs() {
   for role in "${roles[@]}"; do
     local dir="/tmp/agent-${role}"
     local src="$SCRIPT_DIR/.claude/agents/${role}.md"
-    mkdir -p "$dir"
+    mkdir -p "$dir" "$dir/.claude"
     [[ -f "$src" ]] || continue
     # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
     awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
+    # Enable auto-compact so agents don't hang at 100% context
+    echo '{"autoCompactEnabled":true}' > "$dir/.claude/settings.json"
 
     # Append project context so agents know where the codebase lives on every new session
     cat >> "$dir/CLAUDE.md" <<CONTEXT
@@ -182,9 +186,11 @@ PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "/tmp/agent-ba
 PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "/tmp/agent-mobile"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "/tmp/agent-devops"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 
-# 7. Right column: 3 equal rows (designer, qa, reviewer) — Haiku
-PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
-PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
+# 7. Right column: 3 equal rows (designer, qa, reviewer)
+# designer uses Haiku (design spec); qa + reviewer use Sonnet (edge-case/security — needs full reasoning)
+# Note: 'model:' frontmatter in agent .md files applies only when spawned via Agent tool, not bare CLI
+PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD")
 
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 #    Dev roles = cool colors, Support roles = warm colors
@@ -197,12 +203,13 @@ tmux set-option -p -t "$PANE_QA"       @role "QA"       ; tmux set-option -p -t 
 tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t "$PANE_REVIEWER" @role_color "red"
 
 # 9b. RTK Stats pane (optional — only if rtk is installed)
-RTK_PANE_CREATED=false
+RTK_INSTALLED="no"
 if command -v rtk >/dev/null 2>&1; then
-  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' 'watch -n 30 rtk gain')
+  RTK_INSTALLED="yes"
+  PANE_RTK=$(tmux split-window -t "$SESSION:0.0" -v -l 30% -c ~ -P -F '#{pane_id}' \
+    'bash -c "while true; do clear; rtk gain 2>/dev/null; sleep 30; done"')
   tmux set-option -p -t "$PANE_RTK" @role "RTK Stats"
   tmux set-option -p -t "$PANE_RTK" @role_color "colour46"
-  RTK_PANE_CREATED=true
 fi
 
 # 9. Auto-answer trust prompt for agent panes (each pane runs in background)
@@ -228,36 +235,65 @@ done
 #       Must run after all panes are created so indexes are stable.
 #       Appends an "override" section that takes precedence over any hardcoded table.
 patch_pane_maps() {
-  local idx_lead idx_frontend idx_designer idx_backend idx_mobile idx_devops idx_qa idx_reviewer
-  idx_lead=$(tmux display-message     -t "$SESSION:0.0"   -p '#{pane_index}')
-  idx_frontend=$(tmux display-message -t "$PANE_FRONTEND" -p '#{pane_index}')
-  idx_designer=$(tmux display-message -t "$PANE_DESIGNER" -p '#{pane_index}')
-  idx_backend=$(tmux display-message  -t "$PANE_BACKEND"  -p '#{pane_index}')
-  idx_mobile=$(tmux display-message   -t "$PANE_MOBILE"   -p '#{pane_index}')
-  idx_devops=$(tmux display-message   -t "$PANE_DEVOPS"   -p '#{pane_index}')
-  idx_qa=$(tmux display-message       -t "$PANE_QA"       -p '#{pane_index}')
-  idx_reviewer=$(tmux display-message -t "$PANE_REVIEWER" -p '#{pane_index}')
-
   for role in frontend designer backend mobile devops qa reviewer; do
     cat >> "/tmp/agent-${role}/CLAUDE.md" <<MAP
 
 ---
 
-## Pane Addresses (actual — ใช้แทน hardcoded mapping ด้านบน)
-| Role     | Pane                          |
-|----------|-------------------------------|
-| Lead     | \`$SESSION:0.${idx_lead}\`     |
-| frontend | \`$SESSION:0.${idx_frontend}\` |
-| designer | \`$SESSION:0.${idx_designer}\` |
-| backend  | \`$SESSION:0.${idx_backend}\`  |
-| mobile   | \`$SESSION:0.${idx_mobile}\`   |
-| devops   | \`$SESSION:0.${idx_devops}\`   |
-| qa       | \`$SESSION:0.${idx_qa}\`       |
-| reviewer | \`$SESSION:0.${idx_reviewer}\` |
+## Pane Addresses (stable ID — ใช้ตัวนี้เสมอ)
+| Role     | Stable Pane ID       |
+|----------|----------------------|
+| Lead     | \`$SESSION:0.0\`     |
+| frontend | \`$PANE_FRONTEND\`   |
+| designer | \`$PANE_DESIGNER\`   |
+| backend  | \`$PANE_BACKEND\`    |
+| mobile   | \`$PANE_MOBILE\`     |
+| devops   | \`$PANE_DEVOPS\`     |
+| qa       | \`$PANE_QA\`         |
+| reviewer | \`$PANE_REVIEWER\`   |
+
+> ใช้ stable %ID เหล่านี้โดยตรงกับ tmux — ไม่ใช้ numeric index (0.N) เพราะ RTK เลื่อน +1
+> ดู .team-state.md เพื่อ refresh ทุกครั้งหลัง session restart
 MAP
   done
 }
 patch_pane_maps
+
+# 10b. Initialize .team-state.md with verified pane IDs
+init_team_state() {
+  local session_ts
+  session_ts=$(date '+%Y-%m-%d %H:%M')
+
+  cat > "$SCRIPT_DIR/.team-state.md" <<STATE
+# Team State
+_Updated: ${session_ts}_
+_RTK: ${RTK_INSTALLED}_
+
+## Active Project
+[Lead ต้อง set หลังอ่าน projects.json]
+
+## Agents in Panes
+| Role     | Pane ID            | Status | Current Task |
+|----------|--------------------|--------|--------------|
+| frontend | ${PANE_FRONTEND}   | idle   | —            |
+| backend  | ${PANE_BACKEND}    | idle   | —            |
+| mobile   | ${PANE_MOBILE}     | idle   | —            |
+| devops   | ${PANE_DEVOPS}     | idle   | —            |
+| designer | ${PANE_DESIGNER}   | idle   | —            |
+| qa       | ${PANE_QA}         | idle   | —            |
+| reviewer | ${PANE_REVIEWER}   | idle   | —            |
+
+## Pipeline Stage
+ยังไม่เริ่ม
+
+## Recently Completed
+(ยังไม่มี)
+
+## Notes
+Session เริ่มใหม่ — Lead ต้อง set Active Project ก่อนรับงาน
+STATE
+}
+init_team_state
 
 # 10. Inject startup context to Lead (runs in background so attach isn't blocked)
 inject_lead_context() {
@@ -270,44 +306,27 @@ inject_lead_context() {
     "$PROJECTS_JSON" 2>/dev/null || true)
 
   local msg
-  if $RTK_PANE_CREATED; then
-    msg=$(cat <<MSG
-ทีมพร้อมแล้ว — agents รอรับงานใน panes ต่อไปนี้:
+  msg=$(cat <<MSG
+ทีมพร้อมแล้ว — agents รอรับงาน (stable pane IDs):
 
-  RTK Stats → dev-team:0.1
-  Frontend  → dev-team:0.2
-  Backend   → dev-team:0.3
-  Mobile    → dev-team:0.4
-  DevOps    → dev-team:0.5
-  Designer  → dev-team:0.6
-  QA        → dev-team:0.7
-  Reviewer  → dev-team:0.8
+  Frontend  → $PANE_FRONTEND
+  Designer  → $PANE_DESIGNER
+  Backend   → $PANE_BACKEND
+  Mobile    → $PANE_MOBILE
+  DevOps    → $PANE_DEVOPS
+  QA        → $PANE_QA
+  Reviewer  → $PANE_REVIEWER
 
 project: $PROJECT
 $paths_str
 
-ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
-MSG
-)
-  else
-    msg=$(cat <<MSG
-ทีมพร้อมแล้ว — agents รอรับงานใน panes ต่อไปนี้:
-
-  Frontend  → dev-team:0.1
-  Backend   → dev-team:0.2
-  Mobile    → dev-team:0.3
-  DevOps    → dev-team:0.4
-  Designer  → dev-team:0.5
-  QA        → dev-team:0.6
-  Reviewer  → dev-team:0.7
-
-project: $PROJECT
-$paths_str
+.team-state.md ถูกสร้างแล้วใน agent-teams/ พร้อม stable Pane IDs จริง
+→ ใช้ stable %ID จาก .team-state.md เสมอ — ห้ามใช้ numeric index (0.N)
+→ ตั้งค่า Active Project ใน .team-state.md ก่อนรับงานแรก
 
 ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
 MSG
 )
-  fi
 
   # Wait for Lead's Claude prompt before injecting (max 40s)
   local i=0
@@ -330,15 +349,17 @@ cat <<EOF
 
 ✓ Session '$SESSION' ready.
 
-Pane mapping (agents start in /tmp/agent-<role>/ for role isolation):
+Pane mapping (stable %ID — agents start in /tmp/agent-<role>/ for role isolation):
   Lead     → $SESSION:0.0  ($LEAD_PATH)
-  frontend → $SESSION:0.1  (/tmp/agent-frontend)
-  designer → $SESSION:0.2  (/tmp/agent-designer)
-  backend  → $SESSION:0.3  (/tmp/agent-backend)
-  mobile   → $SESSION:0.4  (/tmp/agent-mobile)
-  devops   → $SESSION:0.5  (/tmp/agent-devops)
-  qa       → $SESSION:0.6  (/tmp/agent-qa)
-  reviewer → $SESSION:0.7  (/tmp/agent-reviewer)
+  frontend → $PANE_FRONTEND  (/tmp/agent-frontend)
+  designer → $PANE_DESIGNER  (/tmp/agent-designer)
+  backend  → $PANE_BACKEND  (/tmp/agent-backend)
+  mobile   → $PANE_MOBILE  (/tmp/agent-mobile)
+  devops   → $PANE_DEVOPS  (/tmp/agent-devops)
+  qa       → $PANE_QA  (/tmp/agent-qa)
+  reviewer → $PANE_REVIEWER  (/tmp/agent-reviewer)
+
+(numeric index 0.N ไม่เสถียร — RTK เลื่อน +1; ใช้ stable %ID จาก .team-state.md เสมอ)
 
 EOF
 
