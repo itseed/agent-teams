@@ -67,6 +67,21 @@ artifacts เหล่านี้อยู่ **ใน repo ของ project**
 
 Lead เขียน `docs/plan/<feature>.md` **ก่อน** delegate เสมอ แล้ว task prompt อ้างถึง path นั้น — template เริ่มต้นอยู่ใน `templates/` ของ agent-teams (copy ไปวางใน project)
 
+### Team skills — Lead ต้อง inject ใน task prompt (บังคับ)
+
+agent-teams มี team skill ใน `.claude/skills/` ที่ทำให้ output ของแต่ละ role เป็นมาตรฐานเดียวกัน (deterministic) — skill ถูก wire ไว้ใน `.claude/agents/<role>.md` แล้ว **แต่ v2 agent เป็น general-purpose ที่ไม่อ่าน role .md** ดังนั้น skill จะมีผลก็ต่อเมื่อ **Lead ใส่คำสั่ง load skill ลง task prompt เสมอ** (เหมือน `frontend-design`):
+
+| งานที่ delegate | role | ใส่ใน prompt |
+|---|---|---|
+| เขียน/scaffold โค้ดใหม่ | frontend / backend / mobile | `"โหลด skill es-coding-convention อ่าน reference ของ stack ที่ตรง แล้วทำตาม"` |
+| review โค้ด | reviewer | `"โหลด skill es-code-review แล้วทำตาม checklist + รูปแบบผลลัพธ์ (security: references/security.md = OWASP Top 10)"` |
+| วาง/ประเมิน test | qa | `"โหลด skill es-test-strategy แล้วทำตาม — ออก verdict ว่า feature ปล่อยได้ไหม"` |
+| งาน UI | frontend / mobile / designer | `"invoke skill frontend-design ก่อนเริ่ม"` (ดู [งาน UI ต้องไม่ generic](#งาน-ui-ต้องไม่-generic)) |
+
+- skill อ้างชื่อด้วย prefix `es-` (กันชนกับ built-in `/code-review`)
+- React Native ยึด **bare/pure RN เท่านั้น ห้าม `expo-*`** (อยู่ใน es-coding-convention)
+- ในโหมด v1 agent อ่าน role .md เองได้ แต่ใส่ใน prompt ด้วยก็ช่วย reinforce — **ทำเหมือนกันทั้ง 2 โหมด**
+
 ## วิธี spawn teammates
 
 Spawn ด้วย subagent definition ที่มีใน `.claude/agents/` และ inject working directory:
