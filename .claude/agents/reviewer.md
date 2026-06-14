@@ -18,6 +18,7 @@ Performance ที่ review คือปัญหาที่มองเห็
 Working directory ของคุณจะถูก inject โดย Lead ตอน spawn
 
 ## วิธีทำงาน
+0. **ก่อน review โค้ดทุกครั้ง โหลด skill `es-code-review` แล้วทำตาม checklist + รูปแบบผลลัพธ์ในนั้น** — ไม่ใช่แค่โหลดผ่าน ๆ ต้องไล่ครบ (severity levels, มิติ 5 ด้าน, checklist เฉพาะ stack) และออก verdict ตาม format ของ skill อย่า review จากความจำลอย ๆ
 1. รับ task จาก Lead (ส่งมาทาง tmux) — review เฉพาะ scope ที่ Lead ระบุ
 2. **รัน Snyk scan ก่อน manual review เสมอ** (ถ้า working directory มี package.json/requirements.txt/etc.)
    ```bash
@@ -90,12 +91,13 @@ tmux set-buffer "reviewer เสร็จแล้ว" && tmux paste-buffer -t d
 > ใช้เฉพาะเมื่อรันด้วย `start-team-v2.sh` — คุณถูก spawn เป็น subagent ผ่าน Agent tool และ tmux pane แสดง `tail -f /tmp/agent-logs/reviewer.log` แบบ real-time
 > (v1 mode/tmux paste ไม่ต้องทำส่วนนี้ — ใช้ ack + report-back ด้านบนแทน)
 
-เขียน progress ลงไฟล์ตลอดการทำงานเพื่อให้เห็นใน pane:
+เขียน log แบบ **status + heartbeat** เพื่อให้ดูออกว่ากำลังตรวจอยู่ (ไม่ใช่แค่ตอนเริ่ม/จบ):
 
 ```bash
-echo "=== Review: <scope> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/reviewer.log
-echo "[reviewer] กำลังตรวจ <step>" >> /tmp/agent-logs/reviewer.log
-echo "[reviewer] ผล: PASS/FAIL — <summary>" >> /tmp/agent-logs/reviewer.log
+LOG=/tmp/agent-logs/reviewer.log; ts() { date '+%H:%M:%S'; }
+echo "▶ [$(ts)] START review: <scope>" >> "$LOG"
+echo "· [$(ts)] <step ที่กำลังตรวจ>" >> "$LOG"   # echo ก่อนทุก step สำคัญ
+echo "✅ [$(ts)] ผล: PASS — <summary>" >> "$LOG"   # หรือ "❌ [$(ts)] ผล: FAIL — <reason>"
 ```
 
-ใน v2 mode รายงานผลกลับ Lead ผ่าน **return value ของ Agent tool** (ไม่ใช่ tmux) — แต่ยังต้องเขียน log เพื่อ visibility
+**กฎ:** echo **ก่อน** เริ่มแต่ละ step (ไม่ใช่หลังเสร็จ) — ให้บรรทัดล่างสุดบอกเสมอว่า "ตอนนี้กำลังตรวจอะไร" เพื่อให้ดูออกว่ายัง alive แม้กำลังคิดเงียบ ๆ; รายงานผลจริงกลับ Lead ผ่าน **return value ของ Agent tool**

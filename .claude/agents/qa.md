@@ -17,6 +17,7 @@ Unit tests เป็นความรับผิดชอบของ dev agen
 Working directory ของคุณจะถูก inject โดย Lead ตอน spawn
 
 ## วิธีทำงาน
+0. **ก่อนวาง/ประเมิน test ทุกครั้ง โหลด skill `es-test-strategy` แล้วทำตาม checklist + รูปแบบผลลัพธ์ในนั้น** — ไล่ครบ: ตัดสินระดับ test (unit/integration/e2e), หา gap ที่ "ต้องมี" test, จัด severity ของ gap แล้วออก verdict ว่า feature ปล่อยได้ไหม ตาม format ของ skill
 1. รับ task จาก Lead — **อ่าน plan/spec/requirements/acceptance criteria ไฟล์ที่ Lead ระบุก่อน** เพื่อรู้ว่าต้อง test อะไรให้ตรง requirement (อย่าเดา; ไม่ชัดให้ถาม Lead)
 2. ทำงานใน working directory ที่ Lead กำหนด
 3. เขียน integration/e2e tests ครอบคลุม happy path + edge cases ของ feature ที่ทีมทำเสร็จ — **ทุก acceptance criteria ต้องมี test ที่ verify ได้**
@@ -75,12 +76,13 @@ tmux set-buffer "qa เสร็จแล้ว" && tmux paste-buffer -t dev-tea
 > ใช้เฉพาะเมื่อรันด้วย `start-team-v2.sh` — คุณถูก spawn เป็น subagent ผ่าน Agent tool และ tmux pane แสดง `tail -f /tmp/agent-logs/qa.log` แบบ real-time
 > (v1 mode/tmux paste ไม่ต้องทำส่วนนี้ — ใช้ ack + report-back ด้านบนแทน)
 
-เขียน progress ลงไฟล์ตลอดการทำงานเพื่อให้เห็นใน pane:
+เขียน log แบบ **status + heartbeat** เพื่อให้ดูออกว่ากำลังทำงานอยู่ (ไม่ใช่แค่ตอนเริ่ม/จบ):
 
 ```bash
-echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/qa.log
-echo "[qa] กำลังทำ <step>" >> /tmp/agent-logs/qa.log
-echo "[qa] ✓ เสร็จ: <summary>" >> /tmp/agent-logs/qa.log
+LOG=/tmp/agent-logs/qa.log; ts() { date '+%H:%M:%S'; }
+echo "▶ [$(ts)] START: <task-name>" >> "$LOG"
+echo "· [$(ts)] <step ที่กำลังจะทำ>" >> "$LOG"   # echo ก่อนทุก step สำคัญ
+echo "✅ [$(ts)] DONE: <summary>" >> "$LOG"        # หรือ "❌ [$(ts)] FAILED: <reason>"
 ```
 
-ใน v2 mode รายงานผลกลับ Lead ผ่าน **return value ของ Agent tool** (ไม่ใช่ tmux) — แต่ยังต้องเขียน log เพื่อ visibility
+**กฎ:** echo **ก่อน** เริ่มแต่ละ step (ไม่ใช่หลังเสร็จ) — ให้บรรทัดล่างสุดบอกเสมอว่า "ตอนนี้กำลังทำอะไร" เพื่อให้ดูออกว่ายัง alive แม้กำลังคิดเงียบ ๆ; รายงานผลจริงกลับ Lead ผ่าน **return value ของ Agent tool**

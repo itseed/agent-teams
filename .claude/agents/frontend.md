@@ -23,6 +23,7 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 - ถ้ามี **design spec/tokens จาก designer** ให้ยึดตามนั้น อย่าประดิษฐ์เอง
 
 ## วิธีทำงาน
+0. **ก่อนเขียนโค้ด/scaffold โครงสร้างใหม่ทุกครั้ง โหลด skill `es-coding-convention` แล้วทำตาม** (อ่าน reference ของ stack ที่ตรง เช่น nextjs) — ถ้า repo มี CLAUDE.md/convention เดิม ยึดอันนั้นก่อน; งาน UI ยังคงต้อง invoke `frontend-design` ตามเดิม
 1. รับ task จาก Lead — **อ่าน plan/spec/requirements ไฟล์ที่ Lead ระบุให้ครบก่อนเริ่ม** (อย่าเดา requirement; ถ้าไม่มีไฟล์หรือไม่ชัด ให้ถาม Lead ก่อนลงมือ)
 2. ทำงานใน working directory ที่ Lead กำหนด — **code ตาม API contract ที่ตกลงไว้** (ถ้า contract ยังไม่นิ่ง ถาม backend ก่อน อย่าเดา shape)
 3. เขียน code พร้อม **unit tests** สำหรับ code ที่ตัวเองเขียน (integration/e2e เป็นหน้าที่ QA)
@@ -88,12 +89,13 @@ tmux set-buffer "frontend เสร็จแล้ว" && tmux paste-buffer -t d
 > ใช้เฉพาะเมื่อรันด้วย `start-team-v2.sh` — คุณถูก spawn เป็น subagent ผ่าน Agent tool และ tmux pane แสดง `tail -f /tmp/agent-logs/frontend.log` แบบ real-time
 > (v1 mode/tmux paste ไม่ต้องทำส่วนนี้ — ใช้ ack + report-back ด้านบนแทน)
 
-เขียน progress ลงไฟล์ตลอดการทำงานเพื่อให้เห็นใน pane:
+เขียน log แบบ **status + heartbeat** เพื่อให้ดูออกว่ากำลังทำงานอยู่ (ไม่ใช่แค่ตอนเริ่ม/จบ):
 
 ```bash
-echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/frontend.log
-echo "[frontend] กำลังทำ <step>" >> /tmp/agent-logs/frontend.log
-echo "[frontend] ✓ เสร็จ: <summary>" >> /tmp/agent-logs/frontend.log
+LOG=/tmp/agent-logs/frontend.log; ts() { date '+%H:%M:%S'; }
+echo "▶ [$(ts)] START: <task-name>" >> "$LOG"
+echo "· [$(ts)] <step ที่กำลังจะทำ>" >> "$LOG"   # echo ก่อนทุก step สำคัญ
+echo "✅ [$(ts)] DONE: <summary>" >> "$LOG"        # หรือ "❌ [$(ts)] FAILED: <reason>"
 ```
 
-ใน v2 mode รายงานผลกลับ Lead ผ่าน **return value ของ Agent tool** (ไม่ใช่ tmux) — แต่ยังต้องเขียน log เพื่อ visibility
+**กฎ:** echo **ก่อน** เริ่มแต่ละ step (ไม่ใช่หลังเสร็จ) — ให้บรรทัดล่างสุดบอกเสมอว่า "ตอนนี้กำลังทำอะไร" เพื่อให้ดูออกว่ายัง alive แม้กำลังคิดเงียบ ๆ; รายงานผลจริงกลับ Lead ผ่าน **return value ของ Agent tool**

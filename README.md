@@ -144,6 +144,20 @@ sequenceDiagram
 
 Agent definitions อยู่ใน [.claude/agents/](.claude/agents/)
 
+## Skills (team playbooks)
+
+นอกจาก agent definition แต่ละ role ยังโหลด **skill** เป็น checklist/convention ร่วม **ก่อนเริ่มงาน** — ทำให้ output deterministic (ไม่ขึ้นกับว่าโมเดลจะนึกถึงเองรอบนั้นไหม) อยู่ใน [.claude/skills/](.claude/skills/) ใช้ prefix `es-` กันชนกับ skill/command built-in
+
+| Skill | โหลดโดย | ใช้ตอน |
+|---|---|---|
+| **es-coding-convention** | frontend, backend, mobile | ก่อนเขียนโค้ด/scaffold ใหม่ — naming, folder structure, error handling, git convention (มี reference แยกต่อ stack: nestjs / nextjs / flutter / react-native / line-liff / postgresql) |
+| **es-code-review** | reviewer | ก่อน review — severity levels, มิติ 5 ด้าน, checklist เฉพาะ stack, OWASP Top 10 (`references/security.md`), รูปแบบ verdict |
+| **es-test-strategy** | qa | ก่อนวาง/ประเมิน test — test pyramid, gap ที่ "ต้องมี", severity, verdict ว่า feature ปล่อยได้ไหม |
+
+- ทุก skill เป็น **progressive disclosure**: SKILL.md สั้น โหลด reference เฉพาะ stack/หัวข้อที่ตรงกับงาน (ประหยัด context)
+- React Native ยึด **bare / pure RN เท่านั้น — ห้าม `expo-*`** (โปรเจกต์รัน RN เวอร์ชันใหม่ที่ Expo ตามไม่ทัน)
+- แก้ได้โดยตรงใน `.claude/skills/<name>/` — มีผลทันทีรอบ spawn ถัดไป
+
 ## Prerequisites
 
 **macOS / Linux**
@@ -442,6 +456,10 @@ agent-teams/
     │   ├── designer.md
     │   ├── qa.md
     │   └── reviewer.md
+    ├── skills/                # team playbooks (โหลดเป็น checklist/convention ก่อนทำงาน)
+    │   ├── es-coding-convention/  # naming/structure/scaffold ต่อ stack (มี references/)
+    │   ├── es-code-review/        # severity + OWASP Top 10 + verdict (references/security.md)
+    │   └── es-test-strategy/      # test pyramid + gap severity + verdict
     └── settings.json          # permissions + hooks
 ```
 
@@ -524,6 +542,10 @@ tmux list-panes -t dev-team -F "#{pane_index} #{@role}"
 ---
 
 ## Changelog
+
+### 2026-06-15
+
+**Team skills (`.claude/skills/`)** — เพิ่ม 3 skill เป็น playbook ร่วมที่ agent โหลดก่อนเริ่มงาน (output deterministic ไม่ขึ้นกับว่าโมเดลจะนึกได้เองรอบนั้นไหม): `es-coding-convention` (frontend/backend/mobile — naming/structure/scaffold ต่อ stack), `es-code-review` (reviewer — severity + OWASP Top 10 + verdict), `es-test-strategy` (qa — test pyramid + gap severity). prefix `es-` กันชนกับ built-in `/code-review`; ทุก skill ใช้ progressive disclosure (reference แยกต่อ stack), security ครบ OWASP Top 10 ใน `references/security.md`, React Native = bare/pure RN เท่านั้น (ห้าม `expo-*`) — wire เข้า reviewer/qa/frontend/backend/mobile แล้ว ดู [Skills](#skills-team-playbooks)
 
 ### 2026-06-11
 

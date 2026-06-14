@@ -81,12 +81,13 @@ tmux set-buffer "devops เสร็จแล้ว" && tmux paste-buffer -t dev
 > ใช้เฉพาะเมื่อรันด้วย `start-team-v2.sh` — คุณถูก spawn เป็น subagent ผ่าน Agent tool และ tmux pane แสดง `tail -f /tmp/agent-logs/devops.log` แบบ real-time
 > (v1 mode/tmux paste ไม่ต้องทำส่วนนี้ — ใช้ ack + report-back ด้านบนแทน)
 
-เขียน progress ลงไฟล์ตลอดการทำงานเพื่อให้เห็นใน pane:
+เขียน log แบบ **status + heartbeat** เพื่อให้ดูออกว่ากำลังทำงานอยู่ (ไม่ใช่แค่ตอนเริ่ม/จบ):
 
 ```bash
-echo "=== Task: <task-name> [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ===" >> /tmp/agent-logs/devops.log
-echo "[devops] กำลังทำ <step>" >> /tmp/agent-logs/devops.log
-echo "[devops] ✓ เสร็จ: <summary>" >> /tmp/agent-logs/devops.log
+LOG=/tmp/agent-logs/devops.log; ts() { date '+%H:%M:%S'; }
+echo "▶ [$(ts)] START: <task-name>" >> "$LOG"
+echo "· [$(ts)] <step ที่กำลังจะทำ>" >> "$LOG"   # echo ก่อนทุก step สำคัญ
+echo "✅ [$(ts)] DONE: <summary>" >> "$LOG"        # หรือ "❌ [$(ts)] FAILED: <reason>"
 ```
 
-ใน v2 mode รายงานผลกลับ Lead ผ่าน **return value ของ Agent tool** (ไม่ใช่ tmux) — แต่ยังต้องเขียน log เพื่อ visibility
+**กฎ:** echo **ก่อน** เริ่มแต่ละ step (ไม่ใช่หลังเสร็จ) — ให้บรรทัดล่างสุดบอกเสมอว่า "ตอนนี้กำลังทำอะไร" เพื่อให้ดูออกว่ายัง alive แม้กำลังคิดเงียบ ๆ; รายงานผลจริงกลับ Lead ผ่าน **return value ของ Agent tool**
