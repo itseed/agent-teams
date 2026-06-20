@@ -50,9 +50,9 @@ If session already exists, prompts to resume — preserving all agent state.
 
 Layout (3 columns):
   Lead │ frontend │ designer
-       │ backend  │   qa
-       │ mobile   │ reviewer
-       │ devops   │
+       │ backend  │ architect
+       │ mobile   │   qa
+       │ devops   │ reviewer
 EOF
   exit 0
 fi
@@ -86,7 +86,7 @@ LEAD_PATH="$SCRIPT_DIR"
 # Project working directory is injected per-task by Lead.
 # ──────────────────────────────────────────────────────────────
 create_agent_dirs() {
-  local roles=(frontend designer backend mobile devops qa reviewer)
+  local roles=(frontend designer architect backend mobile devops qa reviewer)
 
   # Build project context to inject into every agent's CLAUDE.md
   local proj_description
@@ -186,16 +186,18 @@ PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "/tmp/agent-ba
 PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "/tmp/agent-mobile"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "/tmp/agent-devops"  -P -F '#{pane_id}' "$CLAUDE_CMD")
 
-# 7. Right column: 3 equal rows (designer, qa, reviewer)
-# designer uses Haiku (design spec); qa + reviewer use Sonnet (edge-case/security — needs full reasoning)
+# 7. Right column: 4 equal rows (designer, architect, qa, reviewer)
+# designer uses Haiku (design spec); architect + qa + reviewer use Sonnet (design reasoning/edge-case/security — needs full reasoning)
 # Note: 'model:' frontmatter in agent .md files applies only when spawned via Agent tool, not bare CLI
-PANE_QA=$(tmux split-window -t "$PANE_DESIGNER" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_ARCHITECT=$(tmux split-window -t "$PANE_DESIGNER" -v -l 75% -c "/tmp/agent-architect" -P -F '#{pane_id}' "$CLAUDE_CMD")
+PANE_QA=$(tmux split-window -t "$PANE_ARCHITECT" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
 PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD")
 
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 #    Dev roles = cool colors, Support roles = warm colors
 tmux set-option -p -t "$PANE_FRONTEND" @role "Frontend" ; tmux set-option -p -t "$PANE_FRONTEND" @role_color "cyan"
 tmux set-option -p -t "$PANE_DESIGNER" @role "Designer" ; tmux set-option -p -t "$PANE_DESIGNER" @role_color "colour211"
+tmux set-option -p -t "$PANE_ARCHITECT" @role "Architect" ; tmux set-option -p -t "$PANE_ARCHITECT" @role_color "colour141"
 tmux set-option -p -t "$PANE_BACKEND"  @role "Backend"  ; tmux set-option -p -t "$PANE_BACKEND"  @role_color "blue"
 tmux set-option -p -t "$PANE_MOBILE"   @role "Mobile"   ; tmux set-option -p -t "$PANE_MOBILE"   @role_color "magenta"
 tmux set-option -p -t "$PANE_DEVOPS"   @role "DevOps"   ; tmux set-option -p -t "$PANE_DEVOPS"   @role_color "green"
@@ -227,7 +229,7 @@ auto_trust() {
   done
 }
 
-for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_BACKEND" "$PANE_MOBILE" "$PANE_DEVOPS" "$PANE_QA" "$PANE_REVIEWER"; do
+for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_ARCHITECT" "$PANE_BACKEND" "$PANE_MOBILE" "$PANE_DEVOPS" "$PANE_QA" "$PANE_REVIEWER"; do
   auto_trust "$_pane" &
 done
 
@@ -235,18 +237,19 @@ done
 #       Must run after all panes are created so indexes are stable.
 #       Appends an "override" section that takes precedence over any hardcoded table.
 patch_pane_maps() {
-  for role in frontend designer backend mobile devops qa reviewer; do
+  for role in frontend designer architect backend mobile devops qa reviewer; do
     cat >> "/tmp/agent-${role}/CLAUDE.md" <<MAP
 
 ---
 
 ## Pane Addresses (stable ID — ใช้ตัวนี้เสมอ)
-| Role     | Stable Pane ID       |
-|----------|----------------------|
-| Lead     | \`$SESSION:0.0\`     |
-| frontend | \`$PANE_FRONTEND\`   |
-| designer | \`$PANE_DESIGNER\`   |
-| backend  | \`$PANE_BACKEND\`    |
+| Role      | Stable Pane ID       |
+|-----------|----------------------|
+| Lead      | \`$SESSION:0.0\`     |
+| frontend  | \`$PANE_FRONTEND\`   |
+| designer  | \`$PANE_DESIGNER\`   |
+| architect | \`$PANE_ARCHITECT\`  |
+| backend   | \`$PANE_BACKEND\`    |
 | mobile   | \`$PANE_MOBILE\`     |
 | devops   | \`$PANE_DEVOPS\`     |
 | qa       | \`$PANE_QA\`         |
@@ -280,6 +283,7 @@ _RTK: ${RTK_INSTALLED}_
 | mobile   | ${PANE_MOBILE}     | idle   | —            |
 | devops   | ${PANE_DEVOPS}     | idle   | —            |
 | designer | ${PANE_DESIGNER}   | idle   | —            |
+| architect | ${PANE_ARCHITECT} | idle   | —            |
 | qa       | ${PANE_QA}         | idle   | —            |
 | reviewer | ${PANE_REVIEWER}   | idle   | —            |
 
@@ -313,6 +317,7 @@ inject_lead_context() {
 
   Frontend  → $PANE_FRONTEND
   Designer  → $PANE_DESIGNER
+  Architect → $PANE_ARCHITECT
   Backend   → $PANE_BACKEND
   Mobile    → $PANE_MOBILE
   DevOps    → $PANE_DEVOPS
@@ -359,6 +364,7 @@ Pane mapping (stable %ID — agents start in /tmp/agent-<role>/ for role isolati
   Lead     → $SESSION:0.0  ($LEAD_PATH)
   frontend → $PANE_FRONTEND  (/tmp/agent-frontend)
   designer → $PANE_DESIGNER  (/tmp/agent-designer)
+  architect→ $PANE_ARCHITECT  (/tmp/agent-architect)
   backend  → $PANE_BACKEND  (/tmp/agent-backend)
   mobile   → $PANE_MOBILE  (/tmp/agent-mobile)
   devops   → $PANE_DEVOPS  (/tmp/agent-devops)
