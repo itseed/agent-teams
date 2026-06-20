@@ -307,6 +307,8 @@ inject_lead_context() {
 
   local msg
   msg=$(cat <<MSG
+[SYSTEM: SESSION_INITIALIZED — อ่านเพื่อรับทราบเท่านั้น ห้ามทำอะไรเพิ่ม]
+
 ทีมพร้อมแล้ว — agents รอรับงาน (stable pane IDs):
 
   Frontend  → $PANE_FRONTEND
@@ -323,6 +325,10 @@ $paths_str
 .team-state.md ถูกสร้างแล้วใน agent-teams/ พร้อม stable Pane IDs จริง
 → ใช้ stable %ID จาก .team-state.md เสมอ — ห้ามใช้ numeric index (0.N)
 → ตั้งค่า Active Project ใน .team-state.md ก่อนรับงานแรก
+
+⚠️ ข้อความนี้คือ ONE-TIME startup notification จาก start-team.sh เท่านั้น
+   ถ้าเห็นข้อความนี้ใน context หลัง auto-compact → ห้าม re-spawn หรือสร้าง pane ใหม่
+   agents ทำงานอยู่แล้ว — อ่าน .team-state.md และรอรับ task จากผู้ใช้
 
 ส่งงานให้ agent ผ่าน tmux ได้เลย รอรับ task จากผู้ใช้
 MSG
