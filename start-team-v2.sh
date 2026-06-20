@@ -36,7 +36,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 CLAUDE_CMD="claude --dangerously-skip-permissions; read"
 LOG_DIR="/tmp/agent-logs"
-ROLES=(frontend backend mobile devops designer qa reviewer)
+ROLES=(frontend backend mobile devops designer architect qa reviewer)
 # Robust per-role log viewer: follows <role>*.log (รวมไฟล์ชื่อเพี้ยนที่ agent สร้าง)
 # แทน `tail -f <role>.log` แบบ exact-name ที่พลาดเมื่อ sub-agent เขียนชื่อไฟล์ไม่ตรง
 LOG_PANE="$SCRIPT_DIR/scripts/log-pane.sh"
@@ -58,9 +58,9 @@ If session already exists, prompts to resume — preserving all state.
 
 Layout (3 columns):
   Lead │ frontend log │ designer log
-       │ backend log  │   qa log
-       │ mobile log   │ reviewer log
-       │ devops log   │
+       │ backend log  │ architect log
+       │ mobile log   │   qa log
+       │ devops log   │ reviewer log
 
 Agent log panes will show "(waiting for first agent spawn)" until Lead spawns the first agent.
 
@@ -152,13 +152,15 @@ PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "$LOG_DIR" -P 
 PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' mobile '$LOG_DIR'")
 PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' devops '$LOG_DIR'")
 
-# 7. Right column: 3 rows (designer, qa, reviewer)
-PANE_QA=$(tmux split-window -t "$PANE_DESIGNER"  -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' qa '$LOG_DIR'")
+# 7. Right column: 4 rows (designer, architect, qa, reviewer)
+PANE_ARCHITECT=$(tmux split-window -t "$PANE_DESIGNER" -v -l 75% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' architect '$LOG_DIR'")
+PANE_QA=$(tmux split-window -t "$PANE_ARCHITECT"  -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' qa '$LOG_DIR'")
 PANE_REVIEWER=$(tmux split-window -t "$PANE_QA"  -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' reviewer '$LOG_DIR'")
 
 # 8. Set @role + @role_color per pane using stable IDs
 tmux set-option -p -t "$PANE_FRONTEND" @role "Frontend log" ; tmux set-option -p -t "$PANE_FRONTEND" @role_color "cyan"
 tmux set-option -p -t "$PANE_DESIGNER" @role "Designer log" ; tmux set-option -p -t "$PANE_DESIGNER" @role_color "colour211"
+tmux set-option -p -t "$PANE_ARCHITECT" @role "Architect log" ; tmux set-option -p -t "$PANE_ARCHITECT" @role_color "colour141"
 tmux set-option -p -t "$PANE_BACKEND"  @role "Backend log"  ; tmux set-option -p -t "$PANE_BACKEND"  @role_color "blue"
 tmux set-option -p -t "$PANE_MOBILE"   @role "Mobile log"   ; tmux set-option -p -t "$PANE_MOBILE"   @role_color "magenta"
 tmux set-option -p -t "$PANE_DEVOPS"   @role "DevOps log"   ; tmux set-option -p -t "$PANE_DEVOPS"   @role_color "green"
@@ -204,6 +206,7 @@ Agents เขียน progress ลง \`${LOG_DIR}/<role>.log\` ; panes ด้�
 | mobile   | ${PANE_MOBILE}   | ${LOG_DIR}/mobile.log   |
 | devops   | ${PANE_DEVOPS}   | ${LOG_DIR}/devops.log   |
 | designer | ${PANE_DESIGNER} | ${LOG_DIR}/designer.log |
+| architect | ${PANE_ARCHITECT} | ${LOG_DIR}/architect.log|
 | qa       | ${PANE_QA}       | ${LOG_DIR}/qa.log       |
 | reviewer | ${PANE_REVIEWER} | ${LOG_DIR}/reviewer.log |
 
@@ -301,8 +304,9 @@ Pane mapping:
   mobile log   → $SESSION:0.3  ($LOG_DIR/mobile.log)
   devops log   → $SESSION:0.4  ($LOG_DIR/devops.log)
   designer log → $SESSION:0.5  ($LOG_DIR/designer.log)
-  qa log       → $SESSION:0.6  ($LOG_DIR/qa.log)
-  reviewer log → $SESSION:0.7  ($LOG_DIR/reviewer.log)
+  architect log→ $SESSION:0.6  ($LOG_DIR/architect.log)
+  qa log       → $SESSION:0.7  ($LOG_DIR/qa.log)
+  reviewer log → $SESSION:0.8  ($LOG_DIR/reviewer.log)
 
 EOF
 

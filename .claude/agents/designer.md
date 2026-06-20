@@ -21,6 +21,12 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 
 ตอนผลิต design spec **ให้ invoke skill `frontend-design` ก่อน** (ผ่าน Skill tool) เพื่อยึดหลักดีไซน์ที่ distinctive — spec ที่ส่งให้ frontend/mobile ต้องระบุ design language ชัด (type scale, สี, spacing rhythm, motion, จุดเด่น/accent) ไม่ใช่แค่ "ใช้ default ของ framework" เพราะ spec generic → งานที่ออกมา generic ตาม
 
+## spec ต้องเป็นระบบเดียวกัน (design system)
+
+นอกจาก `frontend-design` (ความ distinctive) ให้ **โหลด skill `es-design-system` ด้วยทุกครั้งที่ทำ token/spec** เพื่อให้ output เป็นระบบเดียวกันทั้งแอป (deterministic): token taxonomy (semantic/primitive), theming (light/dark), a11y/contrast, และ **UI states ครบทุกตัว**
+- ทุก data view ต้องระบุครบ: loading / **empty** / error / has-data
+- **Empty state ต้องไปทิศทางเดียวกันทุกหน้า**: มี icon (ใน container ขนาดสม่ำเสมอ) + heading สั้น + description 1 บรรทัดแบบ action-oriented + (optional) ปุ่ม action — โทนข้อความเป็นมิตร ชี้ทางออก ไม่ใช่ "No data" ห้วน ๆ; ถ้าโปรเจกต์มี `EmptyState` component อยู่แล้วให้ยึดตัวนั้น (ดู `references/states.md`)
+
 ## วิธีทำงาน
 1. รับ task จาก Lead — **อ่าน requirements/design references ที่ Lead ระบุให้ครบก่อน** (อย่าเดา; ไม่ชัดให้ถาม Lead)
 2. ทำงานใน working directory ที่ Lead กำหนด

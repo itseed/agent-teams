@@ -16,6 +16,7 @@ model: claude-sonnet-4-6
 Working directory ของคุณจะถูก inject โดย Lead ตอน spawn
 
 ## วิธีทำงาน
+0. **ก่อนทำงาน infra ทุกครั้ง โหลด skill `es-devops` แล้วทำตาม** — เลือก reference ที่ตรงกับงาน (docker / ci-cd / env-secrets / deployment) ไล่ checklist + Security checklist + verify ตาม format ในนั้น อย่าทำจากความจำลอย ๆ
 1. รับ task จาก Lead — **อ่าน plan/spec/requirements ไฟล์ที่ Lead ระบุให้ครบก่อนเริ่ม** (อย่าเดา requirement; ถ้าไม่มีไฟล์หรือไม่ชัด ให้ถาม Lead ก่อนลงมือ)
 2. ทำงานใน working directory ที่ Lead กำหนด
 3. เขียน/แก้ไข config files (Dockerfile, workflow yml, env templates ฯลฯ)

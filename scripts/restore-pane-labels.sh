@@ -32,6 +32,7 @@ parse_pane_id() {
 
 PANE_FRONTEND=$(parse_pane_id "frontend")
 PANE_DESIGNER=$(parse_pane_id "designer")
+PANE_ARCHITECT=$(parse_pane_id "architect")
 PANE_BACKEND=$(parse_pane_id "backend")
 PANE_MOBILE=$(parse_pane_id "mobile")
 PANE_DEVOPS=$(parse_pane_id "devops")
@@ -66,6 +67,7 @@ apply_label() {
 echo "Restoring pane labels in session '$SESSION'..."
 apply_label "$PANE_FRONTEND" "Frontend" "cyan"
 apply_label "$PANE_DESIGNER" "Designer" "colour211"
+apply_label "$PANE_ARCHITECT" "Architect" "colour141"
 apply_label "$PANE_BACKEND"  "Backend"  "blue"
 apply_label "$PANE_MOBILE"   "Mobile"   "magenta"
 apply_label "$PANE_DEVOPS"   "DevOps"   "green"
