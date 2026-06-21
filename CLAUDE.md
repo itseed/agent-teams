@@ -12,6 +12,25 @@
 
 Lead ไม่จำเป็นต้อง spawn ทุกตัวทุกครั้ง — spawn เฉพาะที่จำเป็นต่องานนั้นๆ
 
+## ⚠️ โหมดการทำงาน (v1 / v2) — ตรวจก่อนสั่งงานทุกครั้ง (บังคับ)
+
+**วิธีรู้ว่าอยู่โหมดไหน:** อ่าน `.team-state.md` (hook inject ให้ทุก prompt)
+- ขึ้น `_Mode: v2_` → **v2** (เปิดด้วย `start-team-v2.sh`)
+- ไม่ขึ้น `_Mode: v2_` (หรือขึ้น `_Mode: v1_`) → **v1** (เปิดด้วย `start-team.sh` — ค่า default)
+
+### กฎเหล็กของ v1 (interactive panes)
+
+ใน v1 agent แต่ละตัวเป็น **Claude interactive รออยู่ใน pane เดิม** — วิธีส่งงานมีทางเดียว:
+
+- ✅ **ส่งงานทาง `tmux paste`** เข้า stable `%ID` ของ pane นั้น (ดู section "วิธีส่งงานให้ teammate")
+- ❌ **ห้ามใช้ Agent tool** / ❌ ห้าม spawn teammate / ❌ ห้ามเขียน `/tmp/agent-logs/` — **ทั้งหมดนั้นคือ workflow ของ v2 เท่านั้น**
+
+> **ทำไมห้าม:** Agent tool ในฮาร์เนสนี้จะ **สร้าง pane teammate ใหม่ขึ้นมาเอง** ซึ่งชนกับ 8 pane ที่ `start-team.sh` สร้างไว้ → layout เพี้ยน, pane เดิมนั่งว่างไม่ได้รับงาน, log ไม่ตรง pane (อาการ: มี pane `general-purpose` แปลกปลอมโผล่มา ส่วน Frontend/Backend/... ค้างที่ "bypass permissions on")
+
+ถ้าเผลอเริ่มไปทาง Agent tool แล้ว → หยุด, กลับมาส่งงานทาง `tmux paste` เข้า pane เดิมแทน
+
+> v2 ใช้ Agent tool ได้ตามปกติ เพราะ pane ของ v2 เป็น **log viewer** ที่ออกแบบมารองรับ (ดู section "v2 mode")
+
 ## การติดตามงาน (บังคับ)
 
 ใช้ **TodoWrite / TodoRead** ของ Claude Code เพื่อติดตามงานทุกชิ้น — ห้ามพึ่งความจำเพียงอย่างเดียว
@@ -209,6 +228,8 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 | Pane title | ชื่อ role ขึ้นต้นตัวพิมพ์ใหญ่ เช่น `Frontend`, `Backend`, `Mobile`, `DevOps`, `Designer`, `Architect`, `QA`, `Reviewer` |
 
 ### วิธีส่งงานให้ teammate
+
+> **v1 ส่งงานทาง `tmux paste` เท่านั้น — ห้าม Agent tool** (ดู [กฎเหล็กของ v1](#กฎเหล็กของ-v1-interactive-panes))
 
 ต้องรัน **2 Bash tool call แยกกัน** เสมอ — ห้ามรวมใน `&&` เดียวกัน
 
