@@ -270,6 +270,7 @@ init_team_state() {
   cat > "$SCRIPT_DIR/.team-state.md" <<STATE
 # Team State
 _Updated: ${session_ts}_
+_Mode: v1 — interactive panes: ส่งงานทาง tmux paste เข้า pane เดิมเท่านั้น ❌ ห้ามใช้ Agent tool / spawn teammate / เขียน /tmp/agent-logs (นั่นคือ v2)_
 _RTK: ${RTK_INSTALLED}_
 
 ## Active Project
