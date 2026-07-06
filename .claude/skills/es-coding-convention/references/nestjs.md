@@ -58,10 +58,20 @@ src/
 - ใช้ `@nestjs/config` + validation schema (Joi / class-validator) ตอน startup
 - อ่านค่าผ่าน `ConfigService` ไม่ใช่ `process.env` กระจายทั่วโค้ด
 
+## API Contract (contract-first — บังคับเมื่อมี consumer อื่นรอ)
+
+ถ้า endpoint ใหม่มี frontend/mobile รอใช้ (งาน parallel) ต้อง **เขียน `docs/contracts/<api>.md` ก่อนลงมือ implement** แล้วแจ้ง Lead — consumer จะ code ตาม contract นี้ ไม่ใช่เดา shape เอง:
+- request/response shape จริง (field, type, nullability) + ตัวอย่าง JSON
+- error format + status code ต่อ case
+- env var names ที่ consumer ต้องตั้ง (เช่น base URL)
+- template: `templates/contract-template.md` ของ repo agent-teams (ถ้า Lead copy มาไว้ใน project)
+- implement เสร็จแล้ว shape เปลี่ยนจาก contract → ต้องอัปเดต contract + แจ้ง Lead ทันที
+
 ## Scaffold module ใหม่ — checklist
 1. สร้างโฟลเดอร์ `modules/<feature>/` ตามโครงด้านบน
-2. `<feature>.module.ts` declare controller + service + import ที่จำเป็น แล้ว register ใน `AppModule`
-3. DTO พร้อม validation ครบทั้ง create/update
-4. entity + migration
-5. service เขียน business logic + `.spec.ts` คู่กัน
-6. controller บาง ๆ map route → service
+2. ถ้ามี consumer อื่นรอ endpoint นี้ → เขียน `docs/contracts/<api>.md` ก่อน (ดูหัวข้อ API Contract)
+3. `<feature>.module.ts` declare controller + service + import ที่จำเป็น แล้ว register ใน `AppModule`
+4. DTO พร้อม validation ครบทั้ง create/update
+5. entity + migration
+6. service เขียน business logic + `.spec.ts` คู่กัน
+7. controller บาง ๆ map route → service

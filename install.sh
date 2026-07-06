@@ -154,7 +154,7 @@ setup_projects() {
   echo ""
   echo "Making scripts executable..."
   local any_found=false
-  for script in start-team.sh start-team-v2.sh stop-team.sh scripts/team-send.sh; do
+  for script in start-team.sh start-team-v2.sh stop-team.sh scripts/team-send.sh scripts/log-pane.sh scripts/restore-pane-labels.sh; do
     if [[ -f "$SCRIPT_DIR/$script" ]]; then
       chmod +x "$SCRIPT_DIR/$script"
       echo "  ✓ $script"
@@ -165,48 +165,19 @@ setup_projects() {
 }
 
 _patch_reviewer() {
+  # reviewer.md ships with the Snyk workflow baked in — just verify it's intact
   local reviewer="$SCRIPT_DIR/.claude/agents/reviewer.md"
 
   if [[ ! -f "$reviewer" ]]; then
-    echo "  ✗ .claude/agents/reviewer.md not found — skipping patch"
-    return 0
-  fi
-
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "  ✗ python3 not found — reviewer.md not patched"
+    echo "  ✗ .claude/agents/reviewer.md not found — skipping check"
     return 0
   fi
 
   if grep -q "snyk test" "$reviewer"; then
-    echo "  → reviewer.md already has Snyk workflow"
-    return 0
+    echo "  → reviewer.md has Snyk workflow"
+  else
+    echo "  ✗ reviewer.md is missing the Snyk workflow block — restore it with: git checkout -- .claude/agents/reviewer.md"
   fi
-
-  python3 - "$reviewer" <<'PYEOF'
-import sys, re
-
-path = sys.argv[1]
-snyk_block = (
-    "2. **รัน Snyk scan ก่อน manual review เสมอ**"
-    " (ถ้า working directory มี package.json/requirements.txt/etc.)\n"
-    "   ```bash\n"
-    "   snyk test --severity-threshold=high 2>&1 | head -60\n"
-    "   ```\n"
-    "   - ถ้าพบ **critical/high** → flag ทันที ก่อน review ต่อ\n"
-    "   - แนบ snyk output สรุปไว้ใน review report\n"
-)
-content = open(path).read()
-new_content = re.sub(
-    r'(1\. อ่าน task จาก shared task list\n)',
-    lambda m: m.group(0) + snyk_block + "\n",
-    content, count=1
-)
-if new_content == content:
-    sys.stderr.write("  ✗ Could not find insertion point in reviewer.md\n")
-    sys.exit(1)
-open(path, "w").write(new_content)
-print("  ✓ Injected Snyk workflow into .claude/agents/reviewer.md")
-PYEOF
 }
 
 setup_snyk() {

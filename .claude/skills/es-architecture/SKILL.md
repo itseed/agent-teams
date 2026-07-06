@@ -26,7 +26,7 @@ design ที่ดีคือ design ที่ **ลด ambiguity ให้ de
 6. **นิยาม integration points** — endpoint/event/queue ที่ข้าม boundary + ชี้ว่าต้องมี `docs/contracts/<api>.md` ตัวไหนบ้าง (ส่งต่อ backend นิยาม)
 7. **map งานเป็น task ต่อ dev role** — ส่วนไหน frontend/backend/mobile/devops ทำ + acceptance ระดับ design
 8. **ระบุ risks + mitigation** — failure mode, rollout/migration, observability ที่ต้องมี
-9. เขียนทุกอย่างลง `docs/architecture/<feature>.md` (template: `templates/architecture-template.md`)
+9. เขียนทุกอย่างลง `docs/architecture/<feature>.md` — ถ้าใน project มี `templates/architecture-template.md` (Lead copy มาจาก repo agent-teams) ให้ใช้ ถ้าไม่มีใช้โครงใน "รูปแบบผลลัพธ์" ด้านล่าง
 
 ## Tradeoff matrix (ใช้ประเมินทุก approach)
 
@@ -102,7 +102,7 @@ flowchart LR
 
 ## รูปแบบผลลัพธ์
 
-เขียนลง `docs/architecture/<feature>.md` ตาม `templates/architecture-template.md` — โครงหลัก:
+เขียนลง `docs/architecture/<feature>.md` — โครงหลัก (ตรงกับ `templates/architecture-template.md` ของ repo agent-teams):
 
 ```
 ## Architecture: <feature>

@@ -23,6 +23,13 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 1
 fi
 
+# v1 vs v2: labels ต่างกัน (v2 pane เป็น log viewer ชื่อ "<Role> log")
+MODE="v1"
+grep -qi '^_Mode: v2' "$STATE_FILE" && MODE="v2"
+LABEL_SUFFIX=""
+[[ "$MODE" == "v2" ]] && LABEL_SUFFIX=" log"
+echo "Detected mode: $MODE"
+
 # Parse stable pane IDs from .team-state.md
 # Expects lines like: | frontend | %3    | idle   | —  |
 parse_pane_id() {
@@ -65,14 +72,14 @@ apply_label() {
 }
 
 echo "Restoring pane labels in session '$SESSION'..."
-apply_label "$PANE_FRONTEND" "Frontend" "cyan"
-apply_label "$PANE_DESIGNER" "Designer" "colour211"
-apply_label "$PANE_ARCHITECT" "Architect" "colour141"
-apply_label "$PANE_BACKEND"  "Backend"  "blue"
-apply_label "$PANE_MOBILE"   "Mobile"   "magenta"
-apply_label "$PANE_DEVOPS"   "DevOps"   "green"
-apply_label "$PANE_QA"       "QA"       "colour208"
-apply_label "$PANE_REVIEWER" "Reviewer" "red"
+apply_label "$PANE_FRONTEND" "Frontend${LABEL_SUFFIX}" "cyan"
+apply_label "$PANE_DESIGNER" "Designer${LABEL_SUFFIX}" "colour211"
+apply_label "$PANE_ARCHITECT" "Architect${LABEL_SUFFIX}" "colour141"
+apply_label "$PANE_BACKEND"  "Backend${LABEL_SUFFIX}"  "blue"
+apply_label "$PANE_MOBILE"   "Mobile${LABEL_SUFFIX}"   "magenta"
+apply_label "$PANE_DEVOPS"   "DevOps${LABEL_SUFFIX}"   "green"
+apply_label "$PANE_QA"       "QA${LABEL_SUFFIX}"       "colour208"
+apply_label "$PANE_REVIEWER" "Reviewer${LABEL_SUFFIX}" "red"
 
 echo ""
 echo "Done — pane labels restored from .team-state.md"

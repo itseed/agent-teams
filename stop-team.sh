@@ -12,7 +12,7 @@ SESSION="dev-team"
 FORCE=0
 KEEP_LOGS=0
 LOG_DIR="/tmp/agent-logs"
-ROLES=(frontend backend mobile devops designer qa reviewer)
+ROLES=(frontend backend mobile devops designer architect qa reviewer)
 
 # ──────────────────────────────────────────────────────────────
 # Parse args

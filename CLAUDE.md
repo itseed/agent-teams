@@ -112,7 +112,7 @@ agent-teams มี team skill ใน `.claude/skills/` ที่ทำให้ 
 | ออกแบบ architecture/ADR (ก่อน dev เริ่ม) | architect | `"โหลด skill es-architecture แล้วทำตาม — ออก ADR + tradeoff + boundary เป็น docs/architecture/<feature>.md ก่อน dev ลงมือ"` |
 | เขียน/scaffold โค้ดใหม่ | frontend / backend / mobile | `"โหลด skill es-coding-convention อ่าน reference ของ stack ที่ตรง แล้วทำตาม"` |
 | งาน infra/CI/CD/Docker/deploy | devops | `"โหลด skill es-devops อ่าน reference ที่ตรง (docker/ci-cd/env-secrets/deployment) แล้วทำตาม checklist + verify"` |
-| review โค้ด | reviewer | `"โหลด skill es-code-review แล้วทำตาม checklist + รูปแบบผลลัพธ์ (security: references/security.md = OWASP Top 10)"` |
+| review โค้ด | reviewer | `"โหลด skill es-code-review แล้วทำตาม checklist + รูปแบบผลลัพธ์ (security: references/security.md = OWASP Top 10) — รัน snyk test --severity-threshold=high ก่อน manual review ถ้ามี package.json/pubspec.yaml (ไม่มี snyk/SNYK_TOKEN → ข้ามแล้วแจ้งใน report)"` |
 | วาง/ประเมิน test | qa | `"โหลด skill es-test-strategy แล้วทำตาม — ออก verdict ว่า feature ปล่อยได้ไหม"` |
 | design system / token / UI spec | designer | `"โหลด skill es-design-system แล้วทำตาม — token (semantic), UI states ครบ (loading/empty/error), empty state icon+ข้อความทิศทางเดียวกัน, a11y/contrast"` |
 | งาน UI | frontend / mobile / designer | `"invoke skill frontend-design ก่อนเริ่ม"` (ดู [งาน UI ต้องไม่ generic](#งาน-ui-ต้องไม่-generic)) |
