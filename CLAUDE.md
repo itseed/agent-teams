@@ -117,6 +117,7 @@ agent-teams มี team skill ใน `.claude/skills/` ที่ทำให้ 
 
 | งานที่ delegate | role | ใส่ใน prompt |
 |---|---|---|
+| **ทุก task ที่ delegate** (base skill — ใส่คู่กับ skill เฉพาะ role ด้านล่างเสมอ) | ทุก role | `"โหลด skill es-agent-excellence แล้วทำครบทั้ง 6 phase — เข้าใจงาน→สำรวจ→วางแผน→ลงมือ→verify ด้วยหลักฐานจริง (references/verification.md)→self-review (references/self-review.md) ก่อนรายงานเสร็จ"` |
 | ออกแบบ architecture/ADR (ก่อน dev เริ่ม) | architect | `"โหลด skill es-architecture แล้วทำตาม — ออก ADR + tradeoff + boundary เป็น docs/architecture/<feature>.md ก่อน dev ลงมือ"` |
 | เขียน/scaffold โค้ดใหม่ | frontend / backend / mobile | `"โหลด skill es-coding-convention อ่าน reference ของ stack ที่ตรง แล้วทำตาม"` |
 | งาน infra/CI/CD/Docker/deploy | devops | `"โหลด skill es-devops อ่าน reference ที่ตรง (docker/ci-cd/env-secrets/deployment) แล้วทำตาม checklist + verify"` |
