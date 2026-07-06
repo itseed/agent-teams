@@ -10,11 +10,12 @@
       }
     },
     "another-project": {
-      "description": "Another Project",
+      "description": "Another Project (web only — spawn เฉพาะ role ที่ใช้)",
       "paths": {
         "web": "/absolute/path/to/another/web",
         "api": "/absolute/path/to/another/api"
-      }
+      },
+      "roles": ["frontend", "backend", "qa", "reviewer"]
     }
   }
 }

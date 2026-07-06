@@ -232,47 +232,33 @@ inject_lead_context() {
     '.projects[$p].paths | to_entries[] | "  \(.key): \(.value)"' \
     "$PROJECTS_JSON" 2>/dev/null) || paths_str=""
 
-  local msg
-  if $RTK_PANE_CREATED; then
-    msg=$(cat <<MSG
-ทีมพร้อมแล้ว (v2 multi-agent mode) — agent panes แสดง log streams:
-
-  RTK Stats    → dev-team:0.1
-  Frontend log → dev-team:0.2
-  Backend log  → dev-team:0.3
-  Mobile log   → dev-team:0.4
-  DevOps log   → dev-team:0.5
-  Designer log → dev-team:0.6
-  QA log       → dev-team:0.7
-  Reviewer log → dev-team:0.8
-
-project: $PROJECT
-$paths_str
-
-[v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
-รอรับ task จากผู้ใช้
-MSG
-)
-  else
-    msg=$(cat <<MSG
-ทีมพร้อมแล้ว (v2 multi-agent mode) — agent panes แสดง log streams:
-
-  Frontend log → dev-team:0.1
-  Backend log  → dev-team:0.2
-  Mobile log   → dev-team:0.3
-  DevOps log   → dev-team:0.4
-  Designer log → dev-team:0.5
-  QA log       → dev-team:0.6
-  Reviewer log → dev-team:0.7
-
-project: $PROJECT
-$paths_str
-
-[v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
-รอรับ task จากผู้ใช้
-MSG
-)
+  # ใช้ stable %ID เท่านั้น — numeric index (0.N) เลื่อนได้เมื่อมี RTK pane
+  local rtk_line=""
+  if [[ "$RTK_PANE_CREATED" == "true" ]]; then
+    rtk_line="  RTK Stats     → ${PANE_RTK}
+"
   fi
+
+  local msg
+  msg=$(cat <<MSG
+ทีมพร้อมแล้ว (v2 multi-agent mode) — agent panes แสดง log streams (stable pane %ID):
+
+${rtk_line}  Frontend log  → ${PANE_FRONTEND}
+  Backend log   → ${PANE_BACKEND}
+  Mobile log    → ${PANE_MOBILE}
+  DevOps log    → ${PANE_DEVOPS}
+  Designer log  → ${PANE_DESIGNER}
+  Architect log → ${PANE_ARCHITECT}
+  QA log        → ${PANE_QA}
+  Reviewer log  → ${PANE_REVIEWER}
+
+project: $PROJECT
+$paths_str
+
+[v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
+รอรับ task จากผู้ใช้
+MSG
+)
 
   # Wait for Lead's Claude prompt before injecting (max 40s)
   local i=0
@@ -297,16 +283,16 @@ cat <<EOF
 
 Lead pane runs Claude; agent panes stream live logs from $LOG_DIR/
 
-Pane mapping:
-  Lead         → $SESSION:0.0  ($LEAD_PATH)
-  frontend log → $SESSION:0.1  ($LOG_DIR/frontend.log)
-  backend log  → $SESSION:0.2  ($LOG_DIR/backend.log)
-  mobile log   → $SESSION:0.3  ($LOG_DIR/mobile.log)
-  devops log   → $SESSION:0.4  ($LOG_DIR/devops.log)
-  designer log → $SESSION:0.5  ($LOG_DIR/designer.log)
-  architect log→ $SESSION:0.6  ($LOG_DIR/architect.log)
-  qa log       → $SESSION:0.7  ($LOG_DIR/qa.log)
-  reviewer log → $SESSION:0.8  ($LOG_DIR/reviewer.log)
+Pane mapping (stable %ID — numeric index เลื่อนได้เมื่อมี RTK pane):
+  Lead          → $SESSION:0.0  ($LEAD_PATH)
+  frontend log  → $PANE_FRONTEND  ($LOG_DIR/frontend.log)
+  backend log   → $PANE_BACKEND  ($LOG_DIR/backend.log)
+  mobile log    → $PANE_MOBILE  ($LOG_DIR/mobile.log)
+  devops log    → $PANE_DEVOPS  ($LOG_DIR/devops.log)
+  designer log  → $PANE_DESIGNER  ($LOG_DIR/designer.log)
+  architect log → $PANE_ARCHITECT  ($LOG_DIR/architect.log)
+  qa log        → $PANE_QA  ($LOG_DIR/qa.log)
+  reviewer log  → $PANE_REVIEWER  ($LOG_DIR/reviewer.log)
 
 EOF
 

@@ -12,7 +12,7 @@ SESSION="dev-team"
 FORCE=0
 KEEP_LOGS=0
 LOG_DIR="/tmp/agent-logs"
-ROLES=(frontend backend mobile devops designer qa reviewer)
+ROLES=(frontend backend mobile devops designer architect qa reviewer)
 
 # ──────────────────────────────────────────────────────────────
 # Parse args
@@ -98,6 +98,12 @@ cleanup_tmp() {
     fi
   done
   [[ "$removed" -gt 0 ]] && echo "  ✓ removed $removed /tmp/agent-<role> dir(s)"
+
+  # Remove agent status files
+  if [[ -d /tmp/agent-status ]]; then
+    rm -rf /tmp/agent-status
+    echo "  ✓ removed /tmp/agent-status"
+  fi
 }
 
 # ──────────────────────────────────────────────────────────────

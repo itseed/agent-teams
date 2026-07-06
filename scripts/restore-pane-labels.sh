@@ -23,11 +23,24 @@ if [[ ! -f "$STATE_FILE" ]]; then
   exit 1
 fi
 
+# v1 vs v2: labels ต่างกัน (v2 pane เป็น log viewer ชื่อ "<Role> log")
+MODE="v1"
+if grep -qi '^_Mode: v2' "$STATE_FILE"; then
+  MODE="v2"
+fi
+LABEL_SUFFIX=""
+if [[ "$MODE" == "v2" ]]; then
+  LABEL_SUFFIX=" log"
+fi
+echo "Detected mode: $MODE"
+
 # Parse stable pane IDs from .team-state.md
 # Expects lines like: | frontend | %3    | idle   | —  |
 parse_pane_id() {
+  # `|| true` กัน set -e/pipefail ฆ่า script เมื่อ role ไม่มีแถวใน state
+  # (ทีม role-selective spawn มาไม่ครบ 8 เป็นเรื่องปกติ) — apply_label จะ skip ให้เอง
   local role="$1"
-  grep -i "| ${role} " "$STATE_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}'
+  grep -i "| ${role} " "$STATE_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}' || true
 }
 
 PANE_FRONTEND=$(parse_pane_id "frontend")
@@ -65,14 +78,14 @@ apply_label() {
 }
 
 echo "Restoring pane labels in session '$SESSION'..."
-apply_label "$PANE_FRONTEND" "Frontend" "cyan"
-apply_label "$PANE_DESIGNER" "Designer" "colour211"
-apply_label "$PANE_ARCHITECT" "Architect" "colour141"
-apply_label "$PANE_BACKEND"  "Backend"  "blue"
-apply_label "$PANE_MOBILE"   "Mobile"   "magenta"
-apply_label "$PANE_DEVOPS"   "DevOps"   "green"
-apply_label "$PANE_QA"       "QA"       "colour208"
-apply_label "$PANE_REVIEWER" "Reviewer" "red"
+apply_label "$PANE_FRONTEND" "Frontend${LABEL_SUFFIX}" "cyan"
+apply_label "$PANE_DESIGNER" "Designer${LABEL_SUFFIX}" "colour211"
+apply_label "$PANE_ARCHITECT" "Architect${LABEL_SUFFIX}" "colour141"
+apply_label "$PANE_BACKEND"  "Backend${LABEL_SUFFIX}"  "blue"
+apply_label "$PANE_MOBILE"   "Mobile${LABEL_SUFFIX}"   "magenta"
+apply_label "$PANE_DEVOPS"   "DevOps${LABEL_SUFFIX}"   "green"
+apply_label "$PANE_QA"       "QA${LABEL_SUFFIX}"       "colour208"
+apply_label "$PANE_REVIEWER" "Reviewer${LABEL_SUFFIX}" "red"
 
 echo ""
 echo "Done — pane labels restored from .team-state.md"
