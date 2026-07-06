@@ -234,7 +234,7 @@ inject_lead_context() {
 
   # ใช้ stable %ID เท่านั้น — numeric index (0.N) เลื่อนได้เมื่อมี RTK pane
   local rtk_line=""
-  if $RTK_PANE_CREATED; then
+  if [[ "$RTK_PANE_CREATED" == "true" ]]; then
     rtk_line="  RTK Stats     → ${PANE_RTK}
 "
   fi

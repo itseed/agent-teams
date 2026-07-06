@@ -25,16 +25,22 @@ fi
 
 # v1 vs v2: labels ต่างกัน (v2 pane เป็น log viewer ชื่อ "<Role> log")
 MODE="v1"
-grep -qi '^_Mode: v2' "$STATE_FILE" && MODE="v2"
+if grep -qi '^_Mode: v2' "$STATE_FILE"; then
+  MODE="v2"
+fi
 LABEL_SUFFIX=""
-[[ "$MODE" == "v2" ]] && LABEL_SUFFIX=" log"
+if [[ "$MODE" == "v2" ]]; then
+  LABEL_SUFFIX=" log"
+fi
 echo "Detected mode: $MODE"
 
 # Parse stable pane IDs from .team-state.md
 # Expects lines like: | frontend | %3    | idle   | —  |
 parse_pane_id() {
+  # `|| true` กัน set -e/pipefail ฆ่า script เมื่อ role ไม่มีแถวใน state
+  # (ทีม role-selective spawn มาไม่ครบ 8 เป็นเรื่องปกติ) — apply_label จะ skip ให้เอง
   local role="$1"
-  grep -i "| ${role} " "$STATE_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}'
+  grep -i "| ${role} " "$STATE_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}' || true
 }
 
 PANE_FRONTEND=$(parse_pane_id "frontend")
