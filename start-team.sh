@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# spawn-team.sh — spawn dev-team tmux session with Lead + 7 teammates
+# start-team.sh — spawn dev-team tmux session with Lead + agent panes
 #
 # Usage:
-#   ./spawn-team.sh              # ใช้ project จาก field "active" ใน projects.json
-#   ./spawn-team.sh pms          # ใช้ project ชื่อ "pms"
-#   ./spawn-team.sh --help       # แสดง help
+#   ./start-team.sh                              # project จาก "active" + roles จาก field "roles" (หรือครบ 8)
+#   ./start-team.sh pms                          # ใช้ project ชื่อ "pms"
+#   ./start-team.sh pms --roles frontend,qa      # spawn เฉพาะ role ที่ระบุ
+#   ./start-team.sh --help                       # แสดง help
 
 set -euo pipefail
 
@@ -36,26 +37,58 @@ PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 CLAUDE_CMD="claude --model claude-sonnet-4-6 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
-# ──────────────────────────────────────────────────────────────
-# Help
-# ──────────────────────────────────────────────────────────────
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  cat <<EOF
-Usage: $(basename "$0") [PROJECT_NAME]
+ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
+DEV_ROLES=(frontend backend mobile devops)        # คอลัมน์กลาง
+SUPPORT_ROLES=(designer architect qa reviewer)    # คอลัมน์ขวา
 
-Spawn (or resume) tmux session "$SESSION" with Lead + 7 agent panes.
+# ──────────────────────────────────────────────────────────────
+# Parse args: [PROJECT_NAME] [--roles a,b,c]
+# ──────────────────────────────────────────────────────────────
+PROJECT_ARG=""
+ROLES_ARG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      cat <<EOF
+Usage: $(basename "$0") [PROJECT_NAME] [--roles ROLE1,ROLE2,...]
+
+Spawn (or resume) tmux session "$SESSION" with Lead + agent panes.
 If session already exists, prompts to resume — preserving all agent state.
 
   PROJECT_NAME   ชื่อ project ใน projects.json (ถ้าไม่ระบุใช้ field "active")
+  --roles        เลือก role ที่จะ spawn (comma-separated) — ถ้าไม่ระบุใช้
+                 field "roles" ของ project ใน projects.json; ถ้าไม่มีทั้งคู่ = ครบ 8
 
-Layout (3 columns):
-  Lead │ frontend │ designer
-       │ backend  │ architect
-       │ mobile   │   qa
+Roles: ${ALL_ROLES[*]}
+
+Layout (dynamic — สร้างเฉพาะ role ที่เลือก):
+  Lead │ frontend │ designer      dev roles → คอลัมน์กลาง
+       │ backend  │ architect     support roles → คอลัมน์ขวา
+       │ mobile   │   qa          คอลัมน์ที่ว่างทั้งคอลัมน์จะไม่ถูกสร้าง
        │ devops   │ reviewer
+
+เพิ่ม role กลาง session ภายหลัง: ./scripts/add-role.sh <role>
 EOF
-  exit 0
-fi
+      exit 0
+      ;;
+    --roles)
+      ROLES_ARG="${2:-}"
+      [[ -n "$ROLES_ARG" ]] || { echo "Error: --roles ต้องระบุรายชื่อ role" >&2; exit 1; }
+      shift
+      ;;
+    --roles=*)
+      ROLES_ARG="${1#--roles=}"
+      ;;
+    -*)
+      echo "Unknown option: $1 (run with --help)" >&2
+      exit 1
+      ;;
+    *)
+      PROJECT_ARG="$1"
+      ;;
+  esac
+  shift
+done
 
 # ──────────────────────────────────────────────────────────────
 # Dependencies
@@ -67,7 +100,7 @@ command -v jq   >/dev/null || { echo "Error: jq not found (brew install jq)" >&2
 # ──────────────────────────────────────────────────────────────
 # Determine project
 # ──────────────────────────────────────────────────────────────
-PROJECT="${1:-$(jq -r '.active' "$PROJECTS_JSON")}"
+PROJECT="${PROJECT_ARG:-$(jq -r '.active' "$PROJECTS_JSON")}"
 
 if ! jq -e --arg p "$PROJECT" '.projects[$p]' "$PROJECTS_JSON" >/dev/null; then
   echo "Error: project '$PROJECT' not found in projects.json" >&2
@@ -76,6 +109,75 @@ if ! jq -e --arg p "$PROJECT" '.projects[$p]' "$PROJECTS_JSON" >/dev/null; then
 fi
 
 echo "→ Project: $PROJECT"
+
+# ──────────────────────────────────────────────────────────────
+# Resolve selected roles: --roles > projects.json .roles > all 8
+# ──────────────────────────────────────────────────────────────
+if [[ -z "$ROLES_ARG" ]]; then
+  ROLES_ARG=$(jq -r --arg p "$PROJECT" '.projects[$p].roles // [] | join(",")' "$PROJECTS_JSON" 2>/dev/null || true)
+fi
+
+SELECTED_ROLES=()
+if [[ -z "$ROLES_ARG" ]]; then
+  SELECTED_ROLES=("${ALL_ROLES[@]}")
+else
+  IFS=',' read -r -a _raw_roles <<< "$ROLES_ARG"
+  for _r in "${_raw_roles[@]}"; do
+    _r=$(echo "$_r" | tr -d '[:space:]')
+    [[ -n "$_r" ]] || continue
+    if [[ " ${ALL_ROLES[*]} " != *" $_r "* ]]; then
+      echo "Error: unknown role '$_r' (valid: ${ALL_ROLES[*]})" >&2
+      exit 1
+    fi
+    if [[ " ${SELECTED_ROLES[*]-} " != *" $_r "* ]]; then
+      SELECTED_ROLES+=("$_r")
+    fi
+  done
+fi
+
+[[ ${#SELECTED_ROLES[@]} -gt 0 ]] || { echo "Error: ไม่มี role ที่จะ spawn" >&2; exit 1; }
+
+role_selected() { [[ " ${SELECTED_ROLES[*]} " == *" $1 "* ]]; }
+
+echo "→ Roles (${#SELECTED_ROLES[@]}): ${SELECTED_ROLES[*]}"
+
+if ! role_selected qa || ! role_selected reviewer; then
+  echo ""
+  echo "⚠️  ทีมนี้ไม่มี qa/reviewer ครบ — pipeline QA→Reviewer ก่อน merge จะใช้ไม่ได้"
+  echo "   เหมาะกับ session explore/analysis เท่านั้น; เพิ่มทีหลังได้ด้วย ./scripts/add-role.sh qa"
+  echo ""
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Per-role attributes (label / border color / launch command)
+# ──────────────────────────────────────────────────────────────
+role_label() {
+  case "$1" in
+    frontend) echo "Frontend" ;;  backend) echo "Backend" ;;
+    mobile)   echo "Mobile"   ;;  devops)  echo "DevOps"  ;;
+    designer) echo "Designer" ;;  architect) echo "Architect" ;;
+    qa)       echo "QA"       ;;  reviewer) echo "Reviewer" ;;
+  esac
+}
+role_color() {
+  case "$1" in
+    frontend) echo "cyan"      ;;  backend)   echo "blue"      ;;
+    mobile)   echo "magenta"   ;;  devops)    echo "green"     ;;
+    designer) echo "colour211" ;;  architect) echo "colour141" ;;
+    qa)       echo "colour208" ;;  reviewer)  echo "red"       ;;
+  esac
+}
+role_cmd() {
+  case "$1" in
+    designer) echo "$CLAUDE_CMD_HAIKU" ;;
+    *)        echo "$CLAUDE_CMD" ;;
+  esac
+}
+
+# Dynamic pane-id storage (bash 3.2 compatible — no associative arrays)
+pane_var() { echo "PANE_$(echo "$1" | tr '[:lower:]' '[:upper:]')"; }
+set_pane() { eval "$(pane_var "$1")=\"\$2\""; }
+get_pane() { eval "echo \"\${$(pane_var "$1"):-}\""; }
 
 LEAD_PATH="$SCRIPT_DIR"
 
@@ -86,7 +188,7 @@ LEAD_PATH="$SCRIPT_DIR"
 # Project working directory is injected per-task by Lead.
 # ──────────────────────────────────────────────────────────────
 create_agent_dirs() {
-  local roles=(frontend designer architect backend mobile devops qa reviewer)
+  local roles=("${SELECTED_ROLES[@]}")
 
   # Build project context to inject into every agent's CLAUDE.md
   local proj_description
@@ -181,35 +283,57 @@ tmux set-option -w -t "$SESSION:0" pane-border-format " #[fg=#{@role_color},bold
 tmux set-option -p -t "$SESSION:0.0" @role "Lead"
 tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 
-# 5. Create 3 columns (Lead | middle | right)
+# 5. Create columns dynamically (Lead | middle=dev | right=support)
+# สร้างเฉพาะคอลัมน์ที่มี role ถูกเลือก — คอลัมน์ว่างไม่สร้าง pane ที่เหลือได้พื้นที่มากขึ้น
 # Capture stable pane IDs with -P -F '#{pane_id}' so subsequent splits always
 # target the correct pane regardless of how tmux renumbers visual indexes.
-PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-frontend" -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "/tmp/agent-designer" -P -F '#{pane_id}' "$CLAUDE_CMD_HAIKU")
+MID_SELECTED=()
+for _r in "${DEV_ROLES[@]}"; do role_selected "$_r" && MID_SELECTED+=("$_r") || true; done
+RIGHT_SELECTED=()
+for _r in "${SUPPORT_ROLES[@]}"; do role_selected "$_r" && RIGHT_SELECTED+=("$_r") || true; done
+
+MID_HEAD=""
+if [[ ${#MID_SELECTED[@]} -gt 0 ]]; then
+  _r="${MID_SELECTED[0]}"
+  MID_HEAD=$(tmux split-window -t "$SESSION:0.0" -h -c "/tmp/agent-${_r}" -P -F '#{pane_id}' "$(role_cmd "$_r")")
+  set_pane "$_r" "$MID_HEAD"
+fi
+RIGHT_HEAD=""
+if [[ ${#RIGHT_SELECTED[@]} -gt 0 ]]; then
+  _r="${RIGHT_SELECTED[0]}"
+  RIGHT_HEAD=$(tmux split-window -t "${MID_HEAD:-$SESSION:0.0}" -h -c "/tmp/agent-${_r}" -P -F '#{pane_id}' "$(role_cmd "$_r")")
+  set_pane "$_r" "$RIGHT_HEAD"
+fi
 tmux select-layout -t "$SESSION:0" even-horizontal
 
-# 6. Middle column: 4 equal rows (frontend, backend, mobile, devops) — Sonnet
-PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "/tmp/agent-backend" -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "/tmp/agent-mobile"  -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "/tmp/agent-devops"  -P -F '#{pane_id}' "$CLAUDE_CMD")
-
-# 7. Right column: 4 equal rows (designer, architect, qa, reviewer)
-# designer uses Haiku (design spec); architect + qa + reviewer use Sonnet (design reasoning/edge-case/security — needs full reasoning)
-# Note: 'model:' frontmatter in agent .md files applies only when spawned via Agent tool, not bare CLI
-PANE_ARCHITECT=$(tmux split-window -t "$PANE_DESIGNER" -v -l 75% -c "/tmp/agent-architect" -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_QA=$(tmux split-window -t "$PANE_ARCHITECT" -v -l 67% -c "/tmp/agent-qa"       -P -F '#{pane_id}' "$CLAUDE_CMD")
-PANE_REVIEWER=$(tmux split-window -t "$PANE_QA" -v -l 50% -c "/tmp/agent-reviewer" -P -F '#{pane_id}' "$CLAUDE_CMD")
+# 6-7. Fill each column with equal rows for its remaining roles
+# split percentage: เพิ่ม pane ที่ k จาก n → เหลือพื้นที่ (n-k+1)/(n-k+2) (เทียบเท่า 75/67/50 เดิมเมื่อ n=4)
+fill_column() {
+  local prev="$1"; shift
+  local total=$(( $# + 1 ))
+  local k=2 _r pct
+  for _r in "$@"; do
+    pct=$(( (total - k + 1) * 100 / (total - k + 2) ))
+    prev=$(tmux split-window -t "$prev" -v -l "${pct}%" -c "/tmp/agent-${_r}" -P -F '#{pane_id}' "$(role_cmd "$_r")")
+    set_pane "$_r" "$prev"
+    k=$(( k + 1 ))
+  done
+}
+if [[ ${#MID_SELECTED[@]} -gt 1 ]]; then
+  fill_column "$MID_HEAD" "${MID_SELECTED[@]:1}"
+fi
+if [[ ${#RIGHT_SELECTED[@]} -gt 1 ]]; then
+  fill_column "$RIGHT_HEAD" "${RIGHT_SELECTED[@]:1}"
+fi
 
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
-#    Dev roles = cool colors, Support roles = warm colors
-tmux set-option -p -t "$PANE_FRONTEND" @role "Frontend" ; tmux set-option -p -t "$PANE_FRONTEND" @role_color "cyan"
-tmux set-option -p -t "$PANE_DESIGNER" @role "Designer" ; tmux set-option -p -t "$PANE_DESIGNER" @role_color "colour211"
-tmux set-option -p -t "$PANE_ARCHITECT" @role "Architect" ; tmux set-option -p -t "$PANE_ARCHITECT" @role_color "colour141"
-tmux set-option -p -t "$PANE_BACKEND"  @role "Backend"  ; tmux set-option -p -t "$PANE_BACKEND"  @role_color "blue"
-tmux set-option -p -t "$PANE_MOBILE"   @role "Mobile"   ; tmux set-option -p -t "$PANE_MOBILE"   @role_color "magenta"
-tmux set-option -p -t "$PANE_DEVOPS"   @role "DevOps"   ; tmux set-option -p -t "$PANE_DEVOPS"   @role_color "green"
-tmux set-option -p -t "$PANE_QA"       @role "QA"       ; tmux set-option -p -t "$PANE_QA"       @role_color "colour208"
-tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t "$PANE_REVIEWER" @role_color "red"
+# Note: 'model:' frontmatter in agent .md files applies only when spawned via Agent tool, not bare CLI
+# — designer launches with Haiku, others with Sonnet (see role_cmd)
+for _r in "${SELECTED_ROLES[@]}"; do
+  _p=$(get_pane "$_r")
+  tmux set-option -p -t "$_p" @role "$(role_label "$_r")"
+  tmux set-option -p -t "$_p" @role_color "$(role_color "$_r")"
+done
 
 # 9b. RTK Stats pane (optional — only if rtk is installed)
 RTK_INSTALLED="no"
@@ -236,15 +360,22 @@ auto_trust() {
   done
 }
 
-for _pane in "$PANE_FRONTEND" "$PANE_DESIGNER" "$PANE_ARCHITECT" "$PANE_BACKEND" "$PANE_MOBILE" "$PANE_DEVOPS" "$PANE_QA" "$PANE_REVIEWER"; do
-  auto_trust "$_pane" &
+for _r in "${SELECTED_ROLES[@]}"; do
+  auto_trust "$(get_pane "$_r")" &
 done
 
 # 10a. Patch pane mapping in each agent's CLAUDE.md with actual visual indexes
 #       Must run after all panes are created so indexes are stable.
 #       Appends an "override" section that takes precedence over any hardcoded table.
 patch_pane_maps() {
-  for role in frontend designer architect backend mobile devops qa reviewer; do
+  local pane_rows="| Lead      | \`$SESSION:0.0\` |"
+  local r
+  for r in "${SELECTED_ROLES[@]}"; do
+    pane_rows="${pane_rows}
+| $r | \`$(get_pane "$r")\` |"
+  done
+
+  for role in "${SELECTED_ROLES[@]}"; do
     cat >> "/tmp/agent-${role}/CLAUDE.md" <<MAP
 
 ---
@@ -252,16 +383,9 @@ patch_pane_maps() {
 ## Pane Addresses (stable ID — ใช้ตัวนี้เสมอ)
 | Role      | Stable Pane ID       |
 |-----------|----------------------|
-| Lead      | \`$SESSION:0.0\`     |
-| frontend  | \`$PANE_FRONTEND\`   |
-| designer  | \`$PANE_DESIGNER\`   |
-| architect | \`$PANE_ARCHITECT\`  |
-| backend   | \`$PANE_BACKEND\`    |
-| mobile   | \`$PANE_MOBILE\`     |
-| devops   | \`$PANE_DEVOPS\`     |
-| qa       | \`$PANE_QA\`         |
-| reviewer | \`$PANE_REVIEWER\`   |
+$pane_rows
 
+> ทีมนี้ spawn เฉพาะ role ข้างบน — role อื่นไม่มี pane อยู่ในทีมตอนนี้
 > ใช้ stable %ID เหล่านี้โดยตรงกับ tmux — ไม่ใช้ numeric index (0.N) เพราะ RTK เลื่อน +1
 > ดู .team-state.md เพื่อ refresh ทุกครั้งหลัง session restart
 MAP
@@ -273,6 +397,21 @@ patch_pane_maps
 init_team_state() {
   local session_ts
   session_ts=$(date '+%Y-%m-%d %H:%M')
+
+  local agent_rows="" r
+  for r in "${SELECTED_ROLES[@]}"; do
+    agent_rows="${agent_rows}| $r | $(get_pane "$r") | idle | — |
+"
+  done
+
+  local inactive=()
+  for r in "${ALL_ROLES[@]}"; do
+    role_selected "$r" || inactive+=("$r")
+  done
+  local inactive_note=""
+  if [[ ${#inactive[@]} -gt 0 ]]; then
+    inactive_note="Role ที่ไม่ได้ spawn: ${inactive[*]} — ถ้างานต้องใช้ ให้รัน \`./scripts/add-role.sh <role>\` (ห้าม split-window เอง)"
+  fi
 
   cat > "$SCRIPT_DIR/.team-state.md" <<STATE
 # Team State
@@ -286,15 +425,7 @@ _RTK: ${RTK_INSTALLED}_
 ## Agents in Panes
 | Role     | Pane ID            | Status | Current Task |
 |----------|--------------------|--------|--------------|
-| frontend | ${PANE_FRONTEND}   | idle   | —            |
-| backend  | ${PANE_BACKEND}    | idle   | —            |
-| mobile   | ${PANE_MOBILE}     | idle   | —            |
-| devops   | ${PANE_DEVOPS}     | idle   | —            |
-| designer | ${PANE_DESIGNER}   | idle   | —            |
-| architect | ${PANE_ARCHITECT} | idle   | —            |
-| qa       | ${PANE_QA}         | idle   | —            |
-| reviewer | ${PANE_REVIEWER}   | idle   | —            |
-
+${agent_rows}
 ## Pipeline Stage
 ยังไม่เริ่ม
 
@@ -303,6 +434,7 @@ _RTK: ${RTK_INSTALLED}_
 
 ## Notes
 Session เริ่มใหม่ — Lead ต้อง set Active Project ก่อนรับงาน
+${inactive_note}
 STATE
 }
 init_team_state
@@ -317,20 +449,29 @@ inject_lead_context() {
     '.projects[$p].paths | to_entries[] | "  \(.key): \(.value)"' \
     "$PROJECTS_JSON" 2>/dev/null || true)
 
+  local pane_lines="" r
+  for r in "${SELECTED_ROLES[@]}"; do
+    pane_lines="${pane_lines}  $(printf '%-9s' "$(role_label "$r")") → $(get_pane "$r")
+"
+  done
+
+  local inactive=()
+  for r in "${ALL_ROLES[@]}"; do
+    role_selected "$r" || inactive+=("$r")
+  done
+  local inactive_line=""
+  if [[ ${#inactive[@]} -gt 0 ]]; then
+    inactive_line="
+role ที่ไม่ได้ spawn: ${inactive[*]} — ถ้างานต้องใช้ รัน ./scripts/add-role.sh <role> (ห้าม split-window เอง)"
+  fi
+
   local msg
   msg=$(cat <<MSG
 [SYSTEM: SESSION_INITIALIZED — อ่านเพื่อรับทราบเท่านั้น ห้ามทำอะไรเพิ่ม]
 
 ทีมพร้อมแล้ว — agents รอรับงาน (stable pane IDs):
 
-  Frontend  → $PANE_FRONTEND
-  Designer  → $PANE_DESIGNER
-  Architect → $PANE_ARCHITECT
-  Backend   → $PANE_BACKEND
-  Mobile    → $PANE_MOBILE
-  DevOps    → $PANE_DEVOPS
-  QA        → $PANE_QA
-  Reviewer  → $PANE_REVIEWER
+$pane_lines$inactive_line
 
 project: $PROJECT
 $paths_str
@@ -364,24 +505,18 @@ tmux select-pane -t "$SESSION:0.0"
 # ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
-cat <<EOF
-
-✓ Session '$SESSION' ready.
-
-Pane mapping (stable %ID — agents start in /tmp/agent-<role>/ for role isolation):
-  Lead     → $SESSION:0.0  ($LEAD_PATH)
-  frontend → $PANE_FRONTEND  (/tmp/agent-frontend)
-  designer → $PANE_DESIGNER  (/tmp/agent-designer)
-  architect→ $PANE_ARCHITECT  (/tmp/agent-architect)
-  backend  → $PANE_BACKEND  (/tmp/agent-backend)
-  mobile   → $PANE_MOBILE  (/tmp/agent-mobile)
-  devops   → $PANE_DEVOPS  (/tmp/agent-devops)
-  qa       → $PANE_QA  (/tmp/agent-qa)
-  reviewer → $PANE_REVIEWER  (/tmp/agent-reviewer)
-
-(numeric index 0.N ไม่เสถียร — RTK เลื่อน +1; ใช้ stable %ID จาก .team-state.md เสมอ)
-
-EOF
+echo ""
+echo "✓ Session '$SESSION' ready."
+echo ""
+echo "Pane mapping (stable %ID — agents start in /tmp/agent-<role>/ for role isolation):"
+echo "  Lead     → $SESSION:0.0  ($LEAD_PATH)"
+for _r in "${SELECTED_ROLES[@]}"; do
+  printf '  %-9s→ %s  (/tmp/agent-%s)\n' "$_r" "$(get_pane "$_r")" "$_r"
+done
+echo ""
+echo "(numeric index 0.N ไม่เสถียร — RTK เลื่อน +1; ใช้ stable %ID จาก .team-state.md เสมอ)"
+echo "(เพิ่ม role ภายหลัง: ./scripts/add-role.sh <role>)"
+echo ""
 
 # Attach (skip if already in tmux)
 if [[ -z "${TMUX:-}" ]]; then

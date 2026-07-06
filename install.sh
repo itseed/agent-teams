@@ -155,7 +155,7 @@ setup_projects() {
   echo ""
   echo "Making scripts executable..."
   local any_found=false
-  for script in start-team.sh start-team-v2.sh stop-team.sh scripts/team-send.sh scripts/log-pane.sh scripts/restore-pane-labels.sh; do
+  for script in start-team.sh start-team-v2.sh stop-team.sh scripts/team-send.sh scripts/log-pane.sh scripts/restore-pane-labels.sh scripts/team-state.sh scripts/add-role.sh; do
     if [[ -f "$SCRIPT_DIR/$script" ]]; then
       chmod +x "$SCRIPT_DIR/$script"
       echo "  ✓ $script"
