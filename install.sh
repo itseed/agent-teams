@@ -16,6 +16,7 @@ PROJECTS_OK=false
 SCRIPTS_OK=false
 SNYK_CONFIGURED=false
 RTK_OK=false
+SKILLS_OK=false
 
 check_os() {
   local os
@@ -240,6 +241,34 @@ setup_snyk() {
   SNYK_CONFIGURED=true
 }
 
+setup_skills() {
+  # v1 agents run from /tmp/agent-<role>/ so they can't see this repo's
+  # .claude/skills/ — the es-* skills must be reachable at user level.
+  echo ""
+  echo "Linking es-* skills into ~/.claude/skills/ ..."
+  local user_skills="$HOME/.claude/skills"
+  mkdir -p "$user_skills"
+
+  local skill_dir name linked=0
+  for skill_dir in "$SCRIPT_DIR"/.claude/skills/es-*/; do
+    [[ -d "$skill_dir" ]] || continue
+    name=$(basename "$skill_dir")
+    if [[ -e "$user_skills/$name" && ! -L "$user_skills/$name" ]]; then
+      echo "  ⚠ $name exists at $user_skills/$name and is not a symlink — skipped (resolve manually)"
+      continue
+    fi
+    ln -sfn "${skill_dir%/}" "$user_skills/$name"
+    echo "  ✓ $name → $user_skills/$name"
+    linked=$((linked + 1))
+  done
+
+  if [[ "$linked" -gt 0 ]]; then
+    SKILLS_OK=true
+  else
+    echo "  ✗ no es-* skills linked"
+  fi
+}
+
 setup_rtk() {
   echo ""
   echo "Checking RTK (Rust Token Killer)..."
@@ -308,6 +337,7 @@ verify() {
   _s "$CLAUDE_OK"   "claude CLI"
   _s "$PROJECTS_OK" "projects.json"
   _s "$SCRIPTS_OK"  "scripts executable"
+  _s "$SKILLS_OK"   "es-* skills linked to ~/.claude/skills"
 
   if $SNYK_CONFIGURED; then
     echo "  ✓ snyk token configured"
@@ -345,6 +375,7 @@ main() {
   setup_claude
   setup_rtk
   setup_projects
+  setup_skills
   setup_snyk
   verify
 }

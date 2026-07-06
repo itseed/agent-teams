@@ -97,6 +97,13 @@ create_agent_dirs() {
     '.projects[$p].paths | to_entries[] | "- **\(.key)**: \(.value)"' \
     "$PROJECTS_JSON" 2>/dev/null || true)
 
+  # Status files: agents mirror their state here so Lead can always check
+  # even when a tmux report-back gets lost (fire-and-forget)
+  mkdir -p /tmp/agent-status
+  for role in "${roles[@]}"; do
+    > "/tmp/agent-status/${role}.md"
+  done
+
   for role in "${roles[@]}"; do
     local dir="/tmp/agent-${role}"
     local src="$SCRIPT_DIR/.claude/agents/${role}.md"

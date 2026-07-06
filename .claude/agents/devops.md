@@ -67,6 +67,22 @@ tmux set-buffer "devops รับงานแล้ว: <สรุป task 1 บ
 
 ถ้า scope ไม่ชัด/requirement หาย → **ถามกลับก่อน อย่าเดาแล้วลงมือ**
 
+## Status file (บังคับ — ช่องทางสำรองที่ Lead ตรวจได้เสมอ)
+
+tmux paste เป็น fire-and-forget — ack/report อาจหลุดได้ ดังนั้น**เขียนสถานะลงไฟล์ควบคู่เสมอ** Lead จะอ่านไฟล์นี้เมื่อไม่ได้รับ report:
+
+```bash
+STATUS=/tmp/agent-status/devops.md; mkdir -p /tmp/agent-status
+# ทันทีที่รับงาน:
+printf '%s\n' "status: working" "task: <สรุป task 1 บรรทัด>" "updated: $(date '+%H:%M:%S')" > "$STATUS"
+# เมื่อเสร็จ (ก่อนส่ง report กลับ Lead):
+printf '%s\n' "status: done" "task: <สรุป task>" "updated: $(date '+%H:%M:%S')" "" "## Verification evidence" "<output ของ typecheck/build/test/run ที่พิสูจน์ว่าผ่านจริง>" > "$STATUS"
+# ถ้าติดปัญหา/ต้องการ input:
+printf '%s\n' "status: blocked" "task: <task>" "blocker: <ติดอะไร ต้องการอะไร>" "updated: $(date '+%H:%M:%S')" > "$STATUS"
+```
+
+กฎ: เขียน status file **ก่อน** ส่ง tmux report เสมอ — ไฟล์คือ source of truth, tmux คือ notification
+
 ## การรายงานกลับเมื่อเสร็จ (บังคับ)
 
 เมื่อทำงานเสร็จทุกครั้ง **ต้องรัน 2 คำสั่งนี้เสมอ** ก่อนหยุดทำงาน:

@@ -98,6 +98,12 @@ cleanup_tmp() {
     fi
   done
   [[ "$removed" -gt 0 ]] && echo "  ✓ removed $removed /tmp/agent-<role> dir(s)"
+
+  # Remove agent status files
+  if [[ -d /tmp/agent-status ]]; then
+    rm -rf /tmp/agent-status
+    echo "  ✓ removed /tmp/agent-status"
+  fi
 }
 
 # ──────────────────────────────────────────────────────────────
