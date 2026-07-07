@@ -22,7 +22,7 @@ ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
 DEV_ROLES=(frontend backend mobile devops)
 SUPPORT_ROLES=(designer architect qa reviewer)
 
-CLAUDE_CMD="claude --model claude-sonnet-4-6 --dangerously-skip-permissions; read"
+CLAUDE_CMD="claude --model claude-sonnet-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 ROLE="${1:-}"
