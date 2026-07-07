@@ -32,9 +32,9 @@ SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 # Model tiers (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
-#   Sonnet — frontend, backend, mobile, devops, qa, reviewer (เขียน/วิเคราะห์/หา edge case/security)
+#   Sonnet 5 — frontend, backend, mobile, devops, qa, reviewer (เขียน/วิเคราะห์/หา edge case/security)
 #   Haiku  — designer (เขียน design spec เป็นหลัก)
-CLAUDE_CMD="claude --model claude-sonnet-4-6 --dangerously-skip-permissions; read"
+CLAUDE_CMD="claude --model claude-sonnet-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
