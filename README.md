@@ -155,6 +155,7 @@ Agent definitions อยู่ใน [.claude/agents/](.claude/agents/)
 | **es-code-review** | reviewer | ก่อน review — severity levels, มิติ 5 ด้าน, checklist เฉพาะ stack, OWASP Top 10 (`references/security.md`), รูปแบบ verdict |
 | **es-test-strategy** | qa | ก่อนวาง/ประเมิน test — test pyramid, gap ที่ "ต้องมี", severity, verdict ว่า feature ปล่อยได้ไหม |
 | **es-design-system** | designer | ก่อนทำ token/spec — token taxonomy (semantic/primitive), theming (light/dark), **UI states ครบ (loading/empty/error)** + empty state icon+ข้อความทิศทางเดียวกัน, a11y/contrast (references: tokens / states / theming / a11y) |
+| **es-loop-engineering** | **Lead** | เมื่อรับ**งานชิ้นใหญ่** (เกิน ~5 tasks / dev ≥2 role dependency ข้ามกัน / migrate-refactor ใหญ่) — แตกเป็น iteration แบบ vertical slice, วนลูป dev→verify→QA→Reviewer→checkpoint ต่อรอบ, FAIL แบบ bounded (เกิน 3 รอบ = escalate), loop state file กัน state หายตอน auto-compact, ปิดด้วย integration loop จน dry (`references/gates.md`) |
 
 - ทุก skill เป็น **progressive disclosure**: SKILL.md สั้น โหลด reference เฉพาะ stack/หัวข้อที่ตรงกับงาน (ประหยัด context)
 - React Native ยึด **bare / pure RN เท่านั้น — ห้าม `expo-*`** (โปรเจกต์รัน RN เวอร์ชันใหม่ที่ Expo ตามไม่ทัน)
@@ -449,7 +450,8 @@ agent-teams/
 ├── templates/                 # copy ไปวางใน docs/ ของ project
 │   ├── plan-template.md       # requirements + acceptance criteria
 │   ├── architecture-template.md # system design + ADR + tradeoff + boundary
-│   └── contract-template.md   # API contract (shape, env vars, errors)
+│   ├── contract-template.md   # API contract (shape, env vars, errors)
+│   └── loop-state-template.md # loop state ของงานชิ้นใหญ่ (iterations + gates + checkpoints)
 └── .claude/
     ├── agents/                # agent definitions (8 roles)
     │   ├── frontend.md
@@ -466,7 +468,8 @@ agent-teams/
     │   ├── es-design-system/      # token + theming + UI states (empty/loading/error) + a11y
     │   ├── es-devops/             # docker/ci-cd/env-secrets/deployment + security checklist
     │   ├── es-code-review/        # severity + OWASP Top 10 + verdict (references/security.md)
-    │   └── es-test-strategy/      # test pyramid + gap severity + verdict
+    │   ├── es-test-strategy/      # test pyramid + gap severity + verdict
+    │   └── es-loop-engineering/   # งานชิ้นใหญ่: iteration + gates + bounded FAIL loop (references/gates.md)
     └── settings.json          # permissions + hooks
 ```
 
@@ -549,6 +552,10 @@ tmux list-panes -t dev-team -F "#{pane_index} #{@role}"
 ---
 
 ## Changelog
+
+### 2026-07-08
+
+**Loop engineering สำหรับงานชิ้นใหญ่ (`es-loop-engineering`)** — งานที่แตกได้เกิน ~5 tasks / ใช้ dev หลาย role dependency ข้ามกัน / migrate-refactor ใหญ่ ไม่ทำแบบ marathon รวดเดียวอีกต่อไป: Lead โหลด skill `es-loop-engineering` แล้วแตกงานเป็น **iteration แบบ vertical slice** (แต่ละอัน demo ได้จบในตัว) วนลูป gate ต่อรอบ **dev verify → Lead verify → QA → Reviewer → checkpoint commit**. FAIL เป็น **bounded feedback loop**: ส่งกลับพร้อม evidence + fix ต้องมี regression test + เกิน 3 รอบต่อ gate = escalate ผู้ใช้ (ไม่วนเผา token ฟรี), 2 รอบไม่คืบ = ถอยหา root cause ผ่าน architect. สถานะทั้งลูปอยู่ใน **loop state file** `docs/plan/<feature>-loop.md` (template: `templates/loop-state-template.md`) — recovery หลัง auto-compact อ่านไฟล์นี้แล้วทำต่อจาก checkpoint ได้เลย. ปิดงานด้วย **integration loop** เทสรอยต่อข้าม slice จนได้ dry round. wire เข้า CLAUDE.md (เกณฑ์เข้าโหมด + recovery protocol) ใช้ได้ทั้ง v1/v2.
 
 ### 2026-06-21
 
