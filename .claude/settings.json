@@ -16,12 +16,34 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/reap-zombie-devservers.sh",
+            "timeout": 15,
+            "statusMessage": "Reaping orphaned dev servers from prior sessions..."
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "if [ -f .team-state.md ]; then echo '=== TEAM STATE ===' && cat .team-state.md; else echo '[WARNING] .team-state.md not found — run start-team.sh first'; fi"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/cleanup-dev-on-close.sh",
+            "timeout": 15,
+            "statusMessage": "Checking for dev servers to clean up..."
           }
         ]
       }
