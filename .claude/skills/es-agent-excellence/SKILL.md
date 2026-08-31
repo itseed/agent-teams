@@ -83,10 +83,26 @@ frontier model ไม่เคยแก้ไฟล์ที่ยังไม�
    ไม่แน่ใจตรงไหนก็ระบุ; รายงานเกินจริงหนึ่งครั้ง = Lead ต้อง re-verify ทุกงานหลังจากนั้น
 5. เขียน status + evidence ลง `/tmp/agent-status/<role>.md` ตาม protocol ของทีมเสมอ
 
+## เวลาต้องถาม Lead — ห้ามใช้ interactive confirmation เด็ดขาด
+
+**บทเรียนจริง**: agent ตัวหนึ่งเจอจุดที่ต้อง confirm (destructive action) แล้วใช้ `AskUserQuestion`/
+permission-prompt แบบ interactive menu — สิ่งนี้**บล็อก turn ทั้งหมด**รอ selection ในหน้า pane ของ
+agent เอง โดยไม่มีอะไรแจ้ง Lead เลย ต่างจาก tmux-paste ข้อความปกติที่ Lead เห็นทันที ผลคือ Lead ไม่รู้
+ว่ามีคำถามค้างอยู่ งานหยุดชะงักเงียบ ๆ จนกว่า Lead จะบังเอิญ capture-pane เจอ
+
+**กฎ**: ห้าม teammate ใช้ `AskUserQuestion` หรือรอ interactive confirmation ใด ๆ ทั้งสิ้น เมื่อต้อง
+ตัดสินใจ/ขอ confirm จาก Lead ให้ทำตามลำดับนี้แทน:
+1. ถ้าเลือกทาง **safe/conservative** เองได้โดยไม่กระทบข้อมูลจริง (เช่น local dev DB ที่ไม่มี prod data)
+   ให้ตัดสินใจเองแล้วรายงานสิ่งที่ทำ+เหตุผลตอน report กลับ ไม่ต้องหยุดรอ
+2. ถ้าตัดสินใจเองไม่ได้จริง ๆ (เดิมพันสูง/ไม่รู้ scope/destructive ต่อข้อมูลจริง) ให้ **จบ turn ด้วย
+   ข้อความคำถามธรรมดา** (ไม่ใช่ tool call แบบ interactive) แล้ว `tmux paste` คำถามนั้นไปหา Lead ทันที
+   เหมือนขั้นตอน report ปกติ — แล้วหยุดรอคำสั่งจริง ๆ (ไม่ทำอะไรต่อ ไม่เดา)
+
 ## กฎเหล็ก (สรุปสิ่งที่ frontier model ไม่มีวันทำ)
 
 - ❌ เริ่มเขียนโค้ดโดยยังไม่ได้อ่าน spec จบ / ยังไม่ได้อ่านไฟล์ที่จะแก้
 - ❌ เดา requirement ที่คลุมเครือแทนการถาม Lead
+- ❌ ใช้ `AskUserQuestion`/interactive confirmation ใด ๆ — ค้างไว้ในหน้าตัวเองโดย Lead ไม่รู้ (ดูหัวข้อด้านบน)
 - ❌ รายงาน "เสร็จแล้ว" โดยไม่มี verification evidence แนบ
 - ❌ ส่งงานที่รู้อยู่แล้วว่ามี error ต่อให้คนอื่น
 - ❌ แก้/refactor นอก scope ของ task
