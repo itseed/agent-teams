@@ -9,7 +9,8 @@
 # sleep-before-Enter race + the "prompt stuck in input box" footgun
 # (retries Enter, then Esc+Enter) so Lead/agents don't have to hand-roll it.
 #
-# <pane> can be a stable pane id (%3) or a target (dev-team:0.0).
+# <pane> can be a stable pane id (%3) or a target (dev-team:0.0 for v1,
+# dev-team-v2:0.0 for v2).
 
 set -euo pipefail
 

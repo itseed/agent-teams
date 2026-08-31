@@ -85,6 +85,19 @@ Lead ไม่จำเป็นต้อง spawn ทุกตัวทุก�
 4. ดึง paths ของ project นั้นออกมา
 5. วิเคราะห์งานว่าต้องใช้ teammate คนไหน
 6. **เช็คว่า role ที่ต้องใช้มี pane อยู่จริง** — ทีมอาจ spawn มาไม่ครบ 8 (ดูตาราง Agents ใน `.team-state.md`) ถ้า role ที่ต้องใช้ไม่มี pane → รัน `./scripts/add-role.sh <role>` (**ทางเดียวที่อนุญาต** — ห้าม `tmux split-window` เอง) แล้วรอ pane พร้อมก่อนส่งงาน
+7. **ถ้างานนี้เป็น task/feature ใหม่ที่ไม่เกี่ยวข้องกับสิ่งที่ teammate คนนั้นเพิ่งทำค้างอยู่** → ส่ง `/clear` ให้ pane นั้นก่อน แล้วค่อยส่ง task pointer ตามปกติ (ดู [เคลียร์ context ก่อนเริ่มงานใหม่](#เคลียร์-context-ก่อนเริ่มงานใหม่-บังคับ))
+
+## เคลียร์ context ก่อนเริ่มงานใหม่ (บังคับ)
+
+> **บทเรียน**: session แบบ v1 รันต่อเนื่องข้ามวันในแต่ละ pane — ถ้าไม่เคลียร์ context จะสะสมยาวขึ้นเรื่อยๆ จนวันหนึ่ง auto-compact ไม่ทัน/agent ค้าง ทางแก้คือเคลียร์เป็นระยะ ไม่ปล่อยให้สะสมข้ามงาน
+
+- **เมื่อไหร่**: ทุกครั้งที่เริ่ม task/feature ใหม่ให้ teammate คนหนึ่ง (ไม่ใช่ follow-up/fix ต่อเนื่องจาก task เดิมที่เพิ่งคุยกันอยู่) — ส่ง `/clear` ให้ pane นั้นก่อนส่ง task pointer
+- **ทำไมปลอดภัย**: state ที่สำคัญจริง (requirements, plan, verification evidence, decisions) ถูกบันทึกลง `docs/plan/`, `docs/architecture/`, `docs/contracts/`, `/tmp/agent-status/<role>.md`, และ git commits อยู่แล้ว — ไม่ได้พึ่ง context ในหัว agent เป็นแหล่งความจริงเดียว การ clear จึงไม่เสียข้อมูลสำคัญที่ระบุไว้เป็นลายลักษณ์อักษร
+- **Tradeoff**: agent จะไม่มี "ความจำ" การตัดสินใจย่อยๆ ระหว่างทางของ task ก่อนหน้าที่ไม่ได้บันทึกลงไฟล์ (เช่น เหตุผลเล็กๆ ที่คุยกันปากเปล่า) — เพราะงั้นก่อน clear ต้องมั่นใจว่าสิ่งสำคัญถูกบันทึกลง docs/status file ครบแล้ว
+- **วิธีส่ง**: `echo "/clear" | ./scripts/team-send.sh <teammate-pane>` (เหมือนส่ง prompt ปกติ) แล้วรอ ack ก่อนส่ง task pointer จริงตามด้วย
+- **v2 เทียบเท่าด้วย `./scripts/archive-role-log.sh <role>`** — v2 ไม่มี context สะสมในแบบ pane เดิม
+  (agent spawn ใหม่ทุกครั้งผ่าน Agent tool) แต่ `/tmp/agent-logs/<role>.log` สะสมยาวขึ้นเรื่อยๆ ข้าม task
+  ได้เหมือนกัน จุด trigger เดียวกัน (เริ่ม task ใหม่ให้ role นั้น) — รายละเอียดดู [v2 mode](#v2-mode-start-team-v2sh--agent-tool--log-viewer-panes)
 
 ## การ delegate ให้ตรง requirements (บังคับ)
 
@@ -141,6 +154,7 @@ Spawn ด้วย subagent definition ที่มีใน `.claude/agents/` �
 ถ้า session ถูกเปิดด้วย `start-team-v2.sh` (`.team-state.md` จะขึ้น `_Mode: v2_`) วิธีทำงานของ Lead **ต่างจาก v1**:
 
 - **Lead pane เดียวที่รัน Claude** — agent panes ทางขวาเป็น log viewer (รัน `scripts/log-pane.sh <role>` ที่ follow `/tmp/agent-logs/<role>*.log` ทุกไฟล์ที่ขึ้นต้นด้วย role นั้น) ไม่ใช่ Claude process
+- **Session name = `dev-team-v2`** (แยกจาก v1 ที่ใช้ `dev-team`) — ป้องกัน `start-team.sh`/`start-team-v2.sh` ชนกันเวลารันพร้อมกัน; ดู `.team-state.md` เพื่อ pane IDs จริงเสมอ
 - **spawn agent ผ่าน Agent tool** **ไม่ใช่ `tmux paste`** — รับผลกลับเป็น **return value** ตรงๆ ไม่ต้อง scrape/รอ "เสร็จแล้ว"
   - ⚠️ harness นี้ **ไม่ register `.claude/agents/<role>.md` เป็น subagent type** (มีแค่ `general-purpose`, `claude`, `Explore`, `Plan`) — spawn `subagent_type: "frontend"` จะ error
   - ดังนั้นใช้ **`subagent_type: "general-purpose"`** แล้ว **inject role context ใน prompt**: บอก role + working dir + ให้ agent เขียน progress ลง log (และถ้าต้องการ ให้ agent อ่าน `.claude/agents/<role>.md` ของ agent-teams เพื่อรู้ rule ของ role นั้น)
@@ -152,6 +166,13 @@ Spawn ด้วย subagent definition ที่มีใน `.claude/agents/` �
 - **ส่ง `model` param ต่อ role ตอน spawn (บังคับ)** — เพราะ general-purpose **ไม่อ่าน frontmatter** model tiers จึงไม่ทำงานเองใน v2 ต้องระบุเอง:
   - `designer` → **`haiku`**
   - `frontend`, `backend`, `mobile`, `devops`, `architect`, `qa`, `reviewer` → **`sonnet`**
+- **ก่อน spawn task ใหม่ (ไม่ใช่ follow-up ต่อเนื่องจาก task เดิม) ให้ archive+truncate log ของ role นั้นก่อนเสมอ**
+  (คู่กับ `/clear` ของ v1 — ดู [เคลียร์ context ก่อนเริ่มงานใหม่](#เคลียร์-context-ก่อนเริ่มงานใหม่-บังคับ)) กัน
+  `/tmp/agent-logs/<role>.log` โตไม่มีที่สิ้นสุดข้ามหลาย task — truncate ไม่ลบไฟล์ จึง pane ที่ `tail -F`
+  อยู่ไม่ต้อง restart:
+  ```bash
+  ./scripts/archive-role-log.sh <role>
+  ```
 - **ก่อน spawn ให้ echo signal ลง log ของ role นั้นทันที** (กัน pane ดูค้างก่อน agent เขียนบรรทัดแรก):
   ```bash
   echo "⏳ [$(date '+%H:%M:%S')] spawning <role>… (model: <tier>)" >> /tmp/agent-logs/<role>.log
@@ -164,6 +185,11 @@ Spawn ด้วย subagent definition ที่มีใน `.claude/agents/` �
 > v1 (`start-team.sh`) ยังเป็น default — ส่วน "วิธีส่งงานให้ teammate" (tmux paste/ack) ด้านล่างใช้กับ **v1 เท่านั้น**
 
 ## Layout ของ tmux session
+
+> ตัวอย่าง raw commands ด้านล่าง (`claude --dangerously-skip-permissions` ใน pane ตรงๆ, session
+> `dev-team`) คือของ **v1** (`start-team.sh`) เท่านั้น — v2 ใช้ session name `dev-team-v2` และ pane
+> เป็น log viewer (`scripts/log-pane.sh`) แทน Claude process ตรงๆ แต่ 3-column layout concept
+> (Lead | dev roles | support roles) เหมือนกันทั้งสองโหมด (ดู [v2 mode](#v2-mode-start-team-v2sh--agent-tool--log-viewer-panes))
 
 ใช้ **3 columns ใน window เดียว**: Lead อยู่ซ้าย, dev roles ตรงกลาง (frontend / backend / mobile / devops), support roles อยู่ขวา (designer / architect / qa / reviewer)
 
@@ -236,8 +262,8 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 
 | ส่วน | รูปแบบ |
 |------|--------|
-| Session name | `dev-team` |
-| Lead pane | `dev-team:0.0` (ซ้าย) |
+| Session name | `dev-team` (v1) / `dev-team-v2` (v2) |
+| Lead pane | `<session>:0.0` (ซ้าย) — `dev-team:0.0` ใน v1, `dev-team-v2:0.0` ใน v2 |
 | Teammate panes | stable `%ID` (เช่น `%1`, `%3`) — ดูจาก `.team-state.md` เสมอ ห้าม hardcode `0.N` |
 | Pane title | ชื่อ role ขึ้นต้นตัวพิมพ์ใหญ่ เช่น `Frontend`, `Backend`, `Mobile`, `DevOps`, `Designer`, `Architect`, `QA`, `Reviewer` |
 
@@ -347,6 +373,17 @@ Lead ไม่ต้อง relay ข้อความเหล่านี้ �
 - ทุก prompt ต้องมีคำสั่ง report กลับเสมอ (มีอยู่แล้วใน CLAUDE.md แต่ต้อง reinforce)
 - ถ้า agent เสร็จแต่ไม่แจ้ง → เช็ก `cat /tmp/agent-status/<role>.md` ก่อน (source of truth) แล้วค่อย `tmux capture-pane -t <pane> -p | tail -20`
 - ถ้า agent เสร็จแล้วให้ Lead commit & push แทนได้เลย ไม่ต้องรอ
+
+### Agent ค้าง interactive prompt (AskUserQuestion) ในหน้าตัวเอง — Lead ไม่รู้
+- **บทเรียนจริง** (2026-08-09): agent เจอจุดที่ต้อง confirm (destructive action) แล้วใช้ `AskUserQuestion`
+  แบบ interactive menu — บล็อก turn ทั้งหมดรอ selection ในหน้า pane ของตัวเอง ไม่มีอะไรแจ้ง Lead เลย
+  ต่างจาก tmux-paste ข้อความที่ Lead เห็นทันที งานหยุดชะงักเงียบ ๆ จนกว่า Lead จะบังเอิญ capture-pane เจอ
+- **แก้แล้ว**: กฎ "ห้ามใช้ interactive confirmation" ถูกเพิ่มเข้า skill `es-agent-excellence` แล้ว
+  (ทุก role โหลด skill นี้ทุก task อยู่แล้ว) — agent ต้องเลือก safe default เองถ้าทำได้ ถ้าทำไม่ได้ต้องจบ
+  turn ด้วยข้อความ + tmux paste ไปหา Lead แทนการค้าง interactive menu
+- **Safety net**: รัน `./scripts/check-stuck-panes.sh` (สแกนทุก pane หา pattern ค้างเช่น "Enter to
+  select", "(y/n)") แทนการ capture-pane ทีละตัวเอง — ใช้เมื่อสงสัยว่า agent เงียบไปนานผิดปกติ ก่อนจะสรุปว่า
+  "งานเสร็จแล้ว" หรือ "ยังทำอยู่" เฉย ๆ
 
 ### แก้ `.claude/agents/<role>.md` แล้วต้อง restart ทีมถึงมีผล
 - role .md ถูก **copy** ไป `/tmp/agent-<role>/CLAUDE.md` ตอน `start-team.sh` เท่านั้น — แก้กลาง session ไม่มีผลกับ pane ที่รันอยู่

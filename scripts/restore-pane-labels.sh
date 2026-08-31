@@ -4,14 +4,77 @@
 # ใช้เมื่อ pane border label หลุดหลัง auto-compact หรือ session glitch
 # ไม่สร้าง pane ใหม่ — อ่าน .team-state.md เพื่อดู stable %IDs แล้ว re-apply ทับ
 #
+# ใช้ได้ทั้ง v1 (session "dev-team") และ v2 (session "dev-team-v2") — auto-detect
+# จาก tmux session ที่รันอยู่จริง; ถ้ารันอยู่พร้อมกันทั้งคู่ ต้องระบุ --session
+#
 # Usage:
 #   ./scripts/restore-pane-labels.sh
+#   ./scripts/restore-pane-labels.sh --session dev-team-v2
 
 set -euo pipefail
 
-SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 STATE_FILE="$SCRIPT_DIR/.team-state.md"
+SESSION_OVERRIDE=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      cat <<EOF
+Usage: $(basename "$0") [--session SESSION_NAME]
+
+Re-apply @role + @role_color ให้ pane ที่มีอยู่แล้ว — ไม่สร้าง pane ใหม่
+ใช้ได้ทั้ง v1 (dev-team) และ v2 (dev-team-v2) — auto-detect จาก session ที่รันอยู่จริง
+ถ้ารันอยู่พร้อมกันทั้งคู่ ต้องระบุ --session ตรงๆ
+EOF
+      exit 0
+      ;;
+    --session)
+      SESSION_OVERRIDE="${2:-}"
+      [[ -n "$SESSION_OVERRIDE" ]] || { echo "Error: --session ต้องระบุชื่อ session" >&2; exit 1; }
+      shift
+      ;;
+    --session=*)
+      SESSION_OVERRIDE="${1#--session=}"
+      ;;
+    *)
+      echo "Unknown option: $1 (run with --help)" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+# ──────────────────────────────────────────────────────────────
+# Resolve session name: --session > tmux reality (v1/v2) > .team-state.md Mode (last-resort guess)
+# ──────────────────────────────────────────────────────────────
+resolve_session() {
+  if [[ -n "$SESSION_OVERRIDE" ]]; then
+    echo "$SESSION_OVERRIDE"
+    return 0
+  fi
+
+  local v1_up=0 v2_up=0
+  tmux has-session -t dev-team    2>/dev/null && v1_up=1
+  tmux has-session -t dev-team-v2 2>/dev/null && v2_up=1
+
+  if [[ "$v1_up" -eq 1 && "$v2_up" -eq 1 ]]; then
+    echo "Error: ทั้ง 'dev-team' (v1) และ 'dev-team-v2' (v2) กำลังรันอยู่พร้อมกัน — ระบุ session ที่ต้องการด้วย --session dev-team หรือ --session dev-team-v2" >&2
+    exit 1
+  elif [[ "$v1_up" -eq 1 ]]; then
+    echo "dev-team"; return 0
+  elif [[ "$v2_up" -eq 1 ]]; then
+    echo "dev-team-v2"; return 0
+  fi
+
+  if [[ -f "$STATE_FILE" ]] && grep -q "_Mode: v2" "$STATE_FILE"; then
+    echo "dev-team-v2"
+  else
+    echo "dev-team"
+  fi
+}
+
+SESSION="$(resolve_session)"
 
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   echo "Error: session '$SESSION' not found" >&2

@@ -10,6 +10,11 @@
 #   role      หนึ่งใน: frontend backend mobile devops designer architect qa reviewer
 #   project   ชื่อ project ใน projects.json (ถ้าไม่ระบุ อ่านจาก .team-state.md
 #             แล้ว fallback เป็น field "active")
+#
+# Session name: hardcoded "dev-team" โดยตั้งใจ — สคริปต์นี้ spawn Claude interactive
+# process ใหม่เข้า pane (role_cmd/CLAUDE_CMD) ซึ่งเป็นสถาปัตยกรรมของ v1 เท่านั้น และ
+# guard ไว้แล้วด้านล่าง (grep "_Mode: v2" → error + exit) ไม่ให้รันกับ v2 session
+# (dev-team-v2, log-viewer panes) เลย จึงไม่ต้อง resolve_session() แบบ shared scripts อื่น
 
 set -euo pipefail
 

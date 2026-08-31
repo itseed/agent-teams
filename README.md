@@ -14,6 +14,7 @@ Multi-agent dev team ที่ใช้ Claude Code + tmux — **Lead** หน�
 
 | | **v1** — `start-team.sh` (default) | **v2** — `start-team-v2.sh` |
 |---|---|---|
+| tmux session name | `dev-team` | `dev-team-v2` |
 | Agent | Claude 8 process รันค้างใน pane | spawn on-demand ผ่าน **Agent tool** |
 | Pane | interactive Claude (พิมพ์คุยได้) | **log viewer** (`tail -f /tmp/agent-logs/<role>.log`) |
 | ส่งงาน | `tmux paste-buffer` + ack | Agent tool (structured prompt) |
@@ -23,6 +24,10 @@ Multi-agent dev team ที่ใช้ Claude Code + tmux — **Lead** หน�
 v2 = hybrid: ได้ความน่าเชื่อถือแบบ structured spawn **พร้อม** visibility แบบ V1 (เห็น agent แต่ละตัวทำงานแยก pane) — agent เขียน progress ลง log, pane stream แบบ real-time
 
 > discipline เดียวกันทั้งสองโหมด (plan-as-file, verification gate, contract-first, QA→Reviewer, PASS/FAIL)
+
+> session name แยกกัน (`dev-team` vs `dev-team-v2`) — รัน v1 กับ v2 พร้อมกันได้โดยไม่ชนกัน
+> `stop-team.sh` / `scripts/restore-*.sh` auto-detect ว่า session ไหนรันอยู่จริง; ถ้ารันพร้อมกัน
+> ทั้งคู่ต้องระบุ `--session dev-team` หรือ `--session dev-team-v2` เอง
 
 ## Architecture
 

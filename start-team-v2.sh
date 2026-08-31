@@ -31,22 +31,28 @@ EOF
   exit 1
 fi
 
-SESSION="dev-team"
+SESSION="dev-team-v2"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 CLAUDE_CMD="claude --dangerously-skip-permissions; read"
 LOG_DIR="/tmp/agent-logs"
-ROLES=(frontend backend mobile devops designer architect qa reviewer)
+ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
+DEV_ROLES=(frontend backend mobile devops)        # คอลัมน์กลาง
+SUPPORT_ROLES=(designer architect qa reviewer)    # คอลัมน์ขวา
 # Robust per-role log viewer: follows <role>*.log (รวมไฟล์ชื่อเพี้ยนที่ agent สร้าง)
 # แทน `tail -f <role>.log` แบบ exact-name ที่พลาดเมื่อ sub-agent เขียนชื่อไฟล์ไม่ตรง
 LOG_PANE="$SCRIPT_DIR/scripts/log-pane.sh"
 
 # ──────────────────────────────────────────────────────────────
-# Help
+# Parse args: [PROJECT_NAME] [--roles a,b,c]
 # ──────────────────────────────────────────────────────────────
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  cat <<EOF
-Usage: $(basename "$0") [PROJECT_NAME]
+PROJECT_ARG=""
+ROLES_ARG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      cat <<EOF
+Usage: $(basename "$0") [PROJECT_NAME] [--roles ROLE1,ROLE2,...]
 
 Spawn (or resume) tmux session "$SESSION" in v2 multi-agent mode.
 Lead pane runs Claude; agent panes show live log streams from
@@ -55,19 +61,41 @@ Lead pane runs Claude; agent panes show live log streams from
 If session already exists, prompts to resume — preserving all state.
 
   PROJECT_NAME   ชื่อ project ใน projects.json (ถ้าไม่ระบุใช้ field "active")
+  --roles        เลือก role ที่จะ spawn log pane (comma-separated) — ถ้าไม่ระบุใช้
+                 field "roles" ของ project ใน projects.json; ถ้าไม่มีทั้งคู่ = ครบ 8
 
-Layout (3 columns):
-  Lead │ frontend log │ designer log
-       │ backend log  │ architect log
-       │ mobile log   │   qa log
+Roles: ${ALL_ROLES[*]}
+
+Layout (dynamic — สร้างเฉพาะ log pane ของ role ที่เลือก):
+  Lead │ frontend log │ designer log      dev roles → คอลัมน์กลาง
+       │ backend log  │ architect log     support roles → คอลัมน์ขวา
+       │ mobile log   │   qa log          คอลัมน์ที่ว่างทั้งคอลัมน์จะไม่ถูกสร้าง
        │ devops log   │ reviewer log
 
 Agent log panes will show "(waiting for first agent spawn)" until Lead spawns the first agent.
 
 [v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
 EOF
-  exit 0
-fi
+      exit 0
+      ;;
+    --roles)
+      ROLES_ARG="${2:-}"
+      [[ -n "$ROLES_ARG" ]] || { echo "Error: --roles ต้องระบุรายชื่อ role" >&2; exit 1; }
+      shift
+      ;;
+    --roles=*)
+      ROLES_ARG="${1#--roles=}"
+      ;;
+    -*)
+      echo "Unknown option: $1 (run with --help)" >&2
+      exit 1
+      ;;
+    *)
+      PROJECT_ARG="$1"
+      ;;
+  esac
+  shift
+done
 
 # ──────────────────────────────────────────────────────────────
 # Dependencies
@@ -79,7 +107,7 @@ command -v jq   >/dev/null || { echo "Error: jq not found (brew install jq)" >&2
 # ──────────────────────────────────────────────────────────────
 # Determine project
 # ──────────────────────────────────────────────────────────────
-PROJECT="${1:-$(jq -r '.active' "$PROJECTS_JSON")}"
+PROJECT="${PROJECT_ARG:-$(jq -r '.active' "$PROJECTS_JSON")}"
 
 if ! jq -e --arg p "$PROJECT" '.projects[$p]' "$PROJECTS_JSON" >/dev/null; then
   echo "Error: project '$PROJECT' not found in projects.json" >&2
@@ -92,10 +120,73 @@ echo "→ Project: $PROJECT"
 LEAD_PATH="$SCRIPT_DIR"
 
 # ──────────────────────────────────────────────────────────────
-# Prepare /tmp/agent-logs/ — create dir and truncate each role log
+# Resolve selected roles: --roles > projects.json .roles > all 8
+# ──────────────────────────────────────────────────────────────
+if [[ -z "$ROLES_ARG" ]]; then
+  ROLES_ARG=$(jq -r --arg p "$PROJECT" '.projects[$p].roles // [] | join(",")' "$PROJECTS_JSON" 2>/dev/null || true)
+fi
+
+SELECTED_ROLES=()
+if [[ -z "$ROLES_ARG" ]]; then
+  SELECTED_ROLES=("${ALL_ROLES[@]}")
+else
+  IFS=',' read -r -a _raw_roles <<< "$ROLES_ARG"
+  for _r in "${_raw_roles[@]}"; do
+    _r=$(echo "$_r" | tr -d '[:space:]')
+    [[ -n "$_r" ]] || continue
+    if [[ " ${ALL_ROLES[*]} " != *" $_r "* ]]; then
+      echo "Error: unknown role '$_r' (valid: ${ALL_ROLES[*]})" >&2
+      exit 1
+    fi
+    if [[ " ${SELECTED_ROLES[*]-} " != *" $_r "* ]]; then
+      SELECTED_ROLES+=("$_r")
+    fi
+  done
+fi
+
+[[ ${#SELECTED_ROLES[@]} -gt 0 ]] || { echo "Error: ไม่มี role ที่จะ spawn" >&2; exit 1; }
+
+role_selected() { [[ " ${SELECTED_ROLES[*]} " == *" $1 "* ]]; }
+
+echo "→ Roles (${#SELECTED_ROLES[@]}): ${SELECTED_ROLES[*]}"
+
+if ! role_selected qa || ! role_selected reviewer; then
+  echo ""
+  echo "⚠️  ทีมนี้ไม่มี qa/reviewer ครบ — pipeline QA→Reviewer ก่อน merge จะใช้ไม่ได้"
+  echo "   เหมาะกับ session explore/analysis เท่านั้น; เพิ่มทีหลังได้ด้วยการรัน --roles ใหม่พร้อม qa/reviewer"
+  echo ""
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Per-role attributes (log pane label / border color)
+# ──────────────────────────────────────────────────────────────
+role_label() {
+  case "$1" in
+    frontend) echo "Frontend log" ;;  backend) echo "Backend log" ;;
+    mobile)   echo "Mobile log"   ;;  devops)  echo "DevOps log"  ;;
+    designer) echo "Designer log" ;;  architect) echo "Architect log" ;;
+    qa)       echo "QA log"       ;;  reviewer) echo "Reviewer log" ;;
+  esac
+}
+role_color() {
+  case "$1" in
+    frontend) echo "cyan"      ;;  backend)   echo "blue"      ;;
+    mobile)   echo "magenta"   ;;  devops)    echo "green"     ;;
+    designer) echo "colour211" ;;  architect) echo "colour141" ;;
+    qa)       echo "colour208" ;;  reviewer)  echo "red"       ;;
+  esac
+}
+
+# Dynamic pane-id storage (bash 3.2 compatible — no associative arrays)
+pane_var() { echo "PANE_$(echo "$1" | tr '[:lower:]' '[:upper:]')"; }
+set_pane() { eval "$(pane_var "$1")=\"\$2\""; }
+get_pane() { eval "echo \"\${$(pane_var "$1"):-}\""; }
+
+# ──────────────────────────────────────────────────────────────
+# Prepare /tmp/agent-logs/ — create dir and truncate each selected role's log
 # ──────────────────────────────────────────────────────────────
 mkdir -p "$LOG_DIR"
-for role in "${ROLES[@]}"; do
+for role in "${SELECTED_ROLES[@]}"; do
   > "$LOG_DIR/${role}.log"
 done
 echo "→ Log dir ready: $LOG_DIR"
@@ -142,30 +233,55 @@ tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 
 RTK_PANE_CREATED=false
 
-# 5. Create 3 columns (Lead | middle | right) using log-viewer panes
-PANE_FRONTEND=$(tmux split-window -t "$SESSION:0.0" -h -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' frontend '$LOG_DIR'")
-PANE_DESIGNER=$(tmux split-window -t "$PANE_FRONTEND" -h -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' designer '$LOG_DIR'")
+# 5. Create columns dynamically (Lead | middle=dev | right=support) using log-viewer panes
+# สร้างเฉพาะคอลัมน์ที่มี role ถูกเลือก — คอลัมน์ว่างไม่สร้าง pane ที่เหลือได้พื้นที่มากขึ้น
+# Capture stable pane IDs with -P -F '#{pane_id}' so subsequent splits always
+# target the correct pane regardless of how tmux renumbers visual indexes.
+MID_SELECTED=()
+for _r in "${DEV_ROLES[@]}"; do role_selected "$_r" && MID_SELECTED+=("$_r") || true; done
+RIGHT_SELECTED=()
+for _r in "${SUPPORT_ROLES[@]}"; do role_selected "$_r" && RIGHT_SELECTED+=("$_r") || true; done
+
+MID_HEAD=""
+if [[ ${#MID_SELECTED[@]} -gt 0 ]]; then
+  _r="${MID_SELECTED[0]}"
+  MID_HEAD=$(tmux split-window -t "$SESSION:0.0" -h -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' $_r '$LOG_DIR'")
+  set_pane "$_r" "$MID_HEAD"
+fi
+RIGHT_HEAD=""
+if [[ ${#RIGHT_SELECTED[@]} -gt 0 ]]; then
+  _r="${RIGHT_SELECTED[0]}"
+  RIGHT_HEAD=$(tmux split-window -t "${MID_HEAD:-$SESSION:0.0}" -h -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' $_r '$LOG_DIR'")
+  set_pane "$_r" "$RIGHT_HEAD"
+fi
 tmux select-layout -t "$SESSION:0" even-horizontal
 
-# 6. Middle column: 4 rows (frontend, backend, mobile, devops)
-PANE_BACKEND=$(tmux split-window -t "$PANE_FRONTEND" -v -l 75% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' backend '$LOG_DIR'")
-PANE_MOBILE=$(tmux split-window -t "$PANE_BACKEND"   -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' mobile '$LOG_DIR'")
-PANE_DEVOPS=$(tmux split-window -t "$PANE_MOBILE"    -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' devops '$LOG_DIR'")
-
-# 7. Right column: 4 rows (designer, architect, qa, reviewer)
-PANE_ARCHITECT=$(tmux split-window -t "$PANE_DESIGNER" -v -l 75% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' architect '$LOG_DIR'")
-PANE_QA=$(tmux split-window -t "$PANE_ARCHITECT"  -v -l 67% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' qa '$LOG_DIR'")
-PANE_REVIEWER=$(tmux split-window -t "$PANE_QA"  -v -l 50% -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' reviewer '$LOG_DIR'")
+# 6-7. Fill each column with equal rows for its remaining roles
+# split percentage: เพิ่ม pane ที่ k จาก n → เหลือพื้นที่ (n-k+1)/(n-k+2) (เทียบเท่า 75/67/50 เดิมเมื่อ n=4)
+fill_column() {
+  local prev="$1"; shift
+  local total=$(( $# + 1 ))
+  local k=2 _r pct
+  for _r in "$@"; do
+    pct=$(( (total - k + 1) * 100 / (total - k + 2) ))
+    prev=$(tmux split-window -t "$prev" -v -l "${pct}%" -c "$LOG_DIR" -P -F '#{pane_id}' "'$LOG_PANE' $_r '$LOG_DIR'")
+    set_pane "$_r" "$prev"
+    k=$(( k + 1 ))
+  done
+}
+if [[ ${#MID_SELECTED[@]} -gt 1 ]]; then
+  fill_column "$MID_HEAD" "${MID_SELECTED[@]:1}"
+fi
+if [[ ${#RIGHT_SELECTED[@]} -gt 1 ]]; then
+  fill_column "$RIGHT_HEAD" "${RIGHT_SELECTED[@]:1}"
+fi
 
 # 8. Set @role + @role_color per pane using stable IDs
-tmux set-option -p -t "$PANE_FRONTEND" @role "Frontend log" ; tmux set-option -p -t "$PANE_FRONTEND" @role_color "cyan"
-tmux set-option -p -t "$PANE_DESIGNER" @role "Designer log" ; tmux set-option -p -t "$PANE_DESIGNER" @role_color "colour211"
-tmux set-option -p -t "$PANE_ARCHITECT" @role "Architect log" ; tmux set-option -p -t "$PANE_ARCHITECT" @role_color "colour141"
-tmux set-option -p -t "$PANE_BACKEND"  @role "Backend log"  ; tmux set-option -p -t "$PANE_BACKEND"  @role_color "blue"
-tmux set-option -p -t "$PANE_MOBILE"   @role "Mobile log"   ; tmux set-option -p -t "$PANE_MOBILE"   @role_color "magenta"
-tmux set-option -p -t "$PANE_DEVOPS"   @role "DevOps log"   ; tmux set-option -p -t "$PANE_DEVOPS"   @role_color "green"
-tmux set-option -p -t "$PANE_QA"       @role "QA log"       ; tmux set-option -p -t "$PANE_QA"       @role_color "colour208"
-tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer log" ; tmux set-option -p -t "$PANE_REVIEWER" @role_color "red"
+for _r in "${SELECTED_ROLES[@]}"; do
+  _p=$(get_pane "$_r")
+  tmux set-option -p -t "$_p" @role "$(role_label "$_r")"
+  tmux set-option -p -t "$_p" @role_color "$(role_color "$_r")"
+done
 
 # 8b. RTK Stats pane (optional) — split Lead column vertically AFTER layout is set
 #     Uses while-loop because macOS does not ship `watch`
@@ -186,6 +302,21 @@ init_team_state() {
   ts=$(date '+%Y-%m-%d %H:%M')
   command -v rtk >/dev/null 2>&1 && rtk="yes" || rtk="no"
 
+  local agent_rows="" r
+  for r in "${SELECTED_ROLES[@]}"; do
+    agent_rows="${agent_rows}| $r | $(get_pane "$r") | ${LOG_DIR}/${r}.log |
+"
+  done
+
+  local inactive=()
+  for r in "${ALL_ROLES[@]}"; do
+    role_selected "$r" || inactive+=("$r")
+  done
+  local inactive_note=""
+  if [[ ${#inactive[@]} -gt 0 ]]; then
+    inactive_note="Role ที่ไม่ได้ spawn log pane: ${inactive[*]} — spawn agent ได้ปกติผ่าน Agent tool แต่จะไม่มี log pane ให้ tail"
+  fi
+
   cat > "$SCRIPT_DIR/.team-state.md" <<STATE
 # Team State (v2 mode)
 _Updated: ${ts}_
@@ -201,15 +332,7 @@ Agents เขียน progress ลง \`${LOG_DIR}/<role>.log\` ; panes ด้�
 
 | Role | Log viewer pane | Log file |
 |------|-----------------|----------|
-| frontend | ${PANE_FRONTEND} | ${LOG_DIR}/frontend.log |
-| backend  | ${PANE_BACKEND}  | ${LOG_DIR}/backend.log  |
-| mobile   | ${PANE_MOBILE}   | ${LOG_DIR}/mobile.log   |
-| devops   | ${PANE_DEVOPS}   | ${LOG_DIR}/devops.log   |
-| designer | ${PANE_DESIGNER} | ${LOG_DIR}/designer.log |
-| architect | ${PANE_ARCHITECT} | ${LOG_DIR}/architect.log|
-| qa       | ${PANE_QA}       | ${LOG_DIR}/qa.log       |
-| reviewer | ${PANE_REVIEWER} | ${LOG_DIR}/reviewer.log |
-
+${agent_rows}
 ## Pipeline Stage
 ยังไม่เริ่ม
 
@@ -218,6 +341,7 @@ Agents เขียน progress ลง \`${LOG_DIR}/<role>.log\` ; panes ด้�
 
 ## Notes
 v2 mode — ส่งงานผ่าน Agent tool (return value) ไม่ใช่ tmux paste; Lead ต้อง set Active Project ก่อนรับงานแรก
+${inactive_note}
 STATE
 }
 init_team_state
@@ -239,18 +363,27 @@ inject_lead_context() {
 "
   fi
 
+  local pane_lines="" r
+  for r in "${SELECTED_ROLES[@]}"; do
+    pane_lines="${pane_lines}  $(printf '%-13s' "$(role_label "$r")") → $(get_pane "$r")
+"
+  done
+
+  local inactive=()
+  for r in "${ALL_ROLES[@]}"; do
+    role_selected "$r" || inactive+=("$r")
+  done
+  local inactive_line=""
+  if [[ ${#inactive[@]} -gt 0 ]]; then
+    inactive_line="
+role ที่ไม่มี log pane: ${inactive[*]} — spawn agent ได้ปกติผ่าน Agent tool แต่จะไม่มี pane ให้ tail log"
+  fi
+
   local msg
   msg=$(cat <<MSG
 ทีมพร้อมแล้ว (v2 multi-agent mode) — agent panes แสดง log streams (stable pane %ID):
 
-${rtk_line}  Frontend log  → ${PANE_FRONTEND}
-  Backend log   → ${PANE_BACKEND}
-  Mobile log    → ${PANE_MOBILE}
-  DevOps log    → ${PANE_DEVOPS}
-  Designer log  → ${PANE_DESIGNER}
-  Architect log → ${PANE_ARCHITECT}
-  QA log        → ${PANE_QA}
-  Reviewer log  → ${PANE_REVIEWER}
+${rtk_line}${pane_lines}${inactive_line}
 
 project: $PROJECT
 $paths_str
@@ -277,24 +410,17 @@ tmux select-pane -t "$SESSION:0.0"
 # ──────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────
-cat <<EOF
-
-✓ Session '$SESSION' ready (v2 multi-agent mode).
-
-Lead pane runs Claude; agent panes stream live logs from $LOG_DIR/
-
-Pane mapping (stable %ID — numeric index เลื่อนได้เมื่อมี RTK pane):
-  Lead          → $SESSION:0.0  ($LEAD_PATH)
-  frontend log  → $PANE_FRONTEND  ($LOG_DIR/frontend.log)
-  backend log   → $PANE_BACKEND  ($LOG_DIR/backend.log)
-  mobile log    → $PANE_MOBILE  ($LOG_DIR/mobile.log)
-  devops log    → $PANE_DEVOPS  ($LOG_DIR/devops.log)
-  designer log  → $PANE_DESIGNER  ($LOG_DIR/designer.log)
-  architect log → $PANE_ARCHITECT  ($LOG_DIR/architect.log)
-  qa log        → $PANE_QA  ($LOG_DIR/qa.log)
-  reviewer log  → $PANE_REVIEWER  ($LOG_DIR/reviewer.log)
-
-EOF
+echo ""
+echo "✓ Session '$SESSION' ready (v2 multi-agent mode)."
+echo ""
+echo "Lead pane runs Claude; agent panes stream live logs from $LOG_DIR/"
+echo ""
+echo "Pane mapping (stable %ID — numeric index เลื่อนได้เมื่อมี RTK pane):"
+echo "  Lead          → $SESSION:0.0  ($LEAD_PATH)"
+for _r in "${SELECTED_ROLES[@]}"; do
+  printf '  %-13s → %s  (%s/%s.log)\n' "$(role_label "$_r")" "$(get_pane "$_r")" "$LOG_DIR" "$_r"
+done
+echo ""
 
 # Attach or switch to session
 if [[ -z "${TMUX:-}" ]]; then
