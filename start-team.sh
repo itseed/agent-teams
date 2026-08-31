@@ -213,8 +213,10 @@ create_agent_dirs() {
     [[ -f "$src" ]] || continue
     # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
     awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
-    # Enable auto-compact so agents don't hang at 100% context
-    echo '{"autoCompactEnabled":true}' > "$dir/.claude/settings.json"
+    # Enable auto-compact so agents don't hang at 100% context; disable Remote Control
+    # so teammate panes (running from /tmp/agent-<role>, not the repo root) don't each
+    # register as a separate RC session — only Lead should show up in the RC session list
+    echo '{"autoCompactEnabled":true,"disableRemoteControl":true}' > "$dir/.claude/settings.json"
 
     # Append project context so agents know where the codebase lives on every new session
     cat >> "$dir/CLAUDE.md" <<CONTEXT
