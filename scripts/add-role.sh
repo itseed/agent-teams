@@ -12,7 +12,7 @@
 #             แล้ว fallback เป็น field "active")
 #
 # Session name: hardcoded "dev-team" โดยตั้งใจ — สคริปต์นี้ spawn Claude interactive
-# process ใหม่เข้า pane (role_cmd/CLAUDE_CMD) ซึ่งเป็นสถาปัตยกรรมของ v1 เท่านั้น และ
+# process ใหม่เข้า pane (role_cmd) ซึ่งเป็นสถาปัตยกรรมของ v1 เท่านั้น และ
 # guard ไว้แล้วด้านล่าง (grep "_Mode: v2" → error + exit) ไม่ให้รันกับ v2 session
 # (dev-team-v2, log-viewer panes) เลย จึงไม่ต้อง resolve_session() แบบ shared scripts อื่น
 
@@ -27,8 +27,7 @@ ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
 DEV_ROLES=(frontend backend mobile devops)
 SUPPORT_ROLES=(designer architect qa reviewer)
 
-# CLAUDE_CMD = Lead tier (Sonnet 5) — ตรงกับ start-team.sh; add-role.sh ไม่ใช้กับ role ใด (เก็บไว้ให้ตรงกัน)
-CLAUDE_CMD="claude --model claude-sonnet-5 --dangerously-skip-permissions; read"
+# Tiers ตรงกับ start-team.sh (Lead = Opus ใช้เฉพาะใน start-team.sh; add-role.sh ไม่ spawn Lead)
 CLAUDE_CMD_SONNET="claude --model claude-sonnet-5-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_OPUS="claude --model claude-opus-5-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"

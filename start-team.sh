@@ -32,11 +32,9 @@ SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 # Model tiers (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
-#   Opus 5.5   — architect, reviewer (ออกแบบ/วิเคราะห์เชิงลึก/review/security) -> CLAUDE_CMD_OPUS
+#   Opus 5.5   — Lead, architect, reviewer (orchestrate/ออกแบบ/วิเคราะห์เชิงลึก/review/security) -> CLAUDE_CMD_OPUS
 #   Sonnet 5.5 — frontend, backend, mobile, devops, qa (เขียนโค้ด/infra/ทดสอบ) -> CLAUDE_CMD_SONNET
 #   Haiku      — designer (เขียน design spec เป็นหลัก) -> CLAUDE_CMD_HAIKU
-#   CLAUDE_CMD (Sonnet 5) — Lead pane เท่านั้น (ไม่เปลี่ยนพฤติกรรม)
-CLAUDE_CMD="claude --model claude-sonnet-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_SONNET="claude --model claude-sonnet-5-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_OPUS="claude --model claude-opus-5-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
@@ -274,7 +272,7 @@ echo "→ Spawning session '$SESSION'..."
 create_agent_dirs
 
 # 2. Create session with Lead pane
-tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$CLAUDE_CMD"
+tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$CLAUDE_CMD_OPUS"
 
 # 3. Enable mouse support
 tmux set-option -g -t "$SESSION" mouse on
