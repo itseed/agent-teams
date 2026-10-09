@@ -28,9 +28,11 @@ DEV_ROLES=(frontend backend mobile devops)
 SUPPORT_ROLES=(designer architect qa reviewer)
 
 # Tiers ตรงกับ start-team.sh (Lead = Opus ใช้เฉพาะใน start-team.sh; add-role.sh ไม่ spawn Lead)
-CLAUDE_CMD_SONNET="claude --model claude-sonnet-5-5 --dangerously-skip-permissions; read"
-CLAUDE_CMD_OPUS="claude --model claude-opus-5-5 --dangerously-skip-permissions; read"
-CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
+MODEL_OPUS="claude-opus-5-5"
+MODEL_SONNET="claude-sonnet-5-5"
+MODEL_HAIKU="claude-haiku-4-5-20251001"
+# claude_cmd <model> <effort> — effort ผ่าน `claude --effort <low|medium|high|xhigh|max>` (ยืนยันจาก claude --help v2.1.291)
+claude_cmd() { echo "claude --model $1 --effort $2 --dangerously-skip-permissions; read"; }
 
 ROLE="${1:-}"
 PROJECT_ARG="${2:-}"
@@ -92,9 +94,10 @@ role_color() {
 }
 role_cmd() {
   case "$1" in
-    architect|reviewer) echo "$CLAUDE_CMD_OPUS" ;;
-    designer) echo "$CLAUDE_CMD_HAIKU" ;;
-    *)        echo "$CLAUDE_CMD_SONNET" ;;
+    architect|reviewer) claude_cmd "$MODEL_OPUS" high ;;
+    qa)                 claude_cmd "$MODEL_SONNET" high ;;
+    designer)           claude_cmd "$MODEL_HAIKU" low ;;
+    *)                  claude_cmd "$MODEL_SONNET" medium ;;  # frontend, backend, mobile, devops
   esac
 }
 

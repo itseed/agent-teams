@@ -32,12 +32,15 @@ SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 # Model tiers (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
-#   Opus 5.5   — Lead, architect, reviewer (orchestrate/ออกแบบ/วิเคราะห์เชิงลึก/review/security) -> CLAUDE_CMD_OPUS
-#   Sonnet 5.5 — frontend, backend, mobile, devops, qa (เขียนโค้ด/infra/ทดสอบ) -> CLAUDE_CMD_SONNET
-#   Haiku      — designer (เขียน design spec เป็นหลัก) -> CLAUDE_CMD_HAIKU
-CLAUDE_CMD_SONNET="claude --model claude-sonnet-5-5 --dangerously-skip-permissions; read"
-CLAUDE_CMD_OPUS="claude --model claude-opus-5-5 --dangerously-skip-permissions; read"
-CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
+#   Opus 5.5   — Lead, architect, reviewer (orchestrate/ออกแบบ/วิเคราะห์เชิงลึก/review/security)
+#   Sonnet 5.5 — frontend, backend, mobile, devops, qa (เขียนโค้ด/infra/ทดสอบ)
+#   Haiku      — designer (เขียน design spec เป็นหลัก)
+# Reasoning effort ต่อ role (--effort): high = Lead/architect/reviewer/qa · medium = frontend/backend/mobile/devops · low = designer
+MODEL_OPUS="claude-opus-5-5"
+MODEL_SONNET="claude-sonnet-5-5"
+MODEL_HAIKU="claude-haiku-4-5-20251001"
+# claude_cmd <model> <effort> — effort ผ่าน `claude --effort <low|medium|high|xhigh|max>` (ยืนยันจาก claude --help v2.1.291)
+claude_cmd() { echo "claude --model $1 --effort $2 --dangerously-skip-permissions; read"; }
 
 ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
 DEV_ROLES=(frontend backend mobile devops)        # คอลัมน์กลาง
@@ -171,9 +174,10 @@ role_color() {
 }
 role_cmd() {
   case "$1" in
-    architect|reviewer) echo "$CLAUDE_CMD_OPUS" ;;
-    designer) echo "$CLAUDE_CMD_HAIKU" ;;
-    *)        echo "$CLAUDE_CMD_SONNET" ;;
+    architect|reviewer) claude_cmd "$MODEL_OPUS" high ;;
+    qa)                 claude_cmd "$MODEL_SONNET" high ;;
+    designer)           claude_cmd "$MODEL_HAIKU" low ;;
+    *)                  claude_cmd "$MODEL_SONNET" medium ;;  # frontend, backend, mobile, devops
   esac
 }
 
@@ -272,7 +276,7 @@ echo "→ Spawning session '$SESSION'..."
 create_agent_dirs
 
 # 2. Create session with Lead pane
-tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$CLAUDE_CMD_OPUS"
+tmux new-session -d -s "$SESSION" -c "$LEAD_PATH" "$(claude_cmd "$MODEL_OPUS" high)"
 
 # 3. Enable mouse support
 tmux set-option -g -t "$SESSION" mouse on
