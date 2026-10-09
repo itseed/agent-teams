@@ -32,9 +32,13 @@ SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 # Model tiers (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
-#   Sonnet 5 — frontend, backend, mobile, devops, architect, qa, reviewer (เขียน/วิเคราะห์/หา edge case/security)
-#   Haiku  — designer (เขียน design spec เป็นหลัก)
+#   Opus 5.5   — architect, reviewer (ออกแบบ/วิเคราะห์เชิงลึก/review/security) -> CLAUDE_CMD_OPUS
+#   Sonnet 5.5 — frontend, backend, mobile, devops, qa (เขียนโค้ด/infra/ทดสอบ) -> CLAUDE_CMD_SONNET
+#   Haiku      — designer (เขียน design spec เป็นหลัก) -> CLAUDE_CMD_HAIKU
+#   CLAUDE_CMD (Sonnet 5) — Lead pane เท่านั้น (ไม่เปลี่ยนพฤติกรรม)
 CLAUDE_CMD="claude --model claude-sonnet-5 --dangerously-skip-permissions; read"
+CLAUDE_CMD_SONNET="claude --model claude-sonnet-5-5 --dangerously-skip-permissions; read"
+CLAUDE_CMD_OPUS="claude --model claude-opus-5-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
@@ -169,8 +173,9 @@ role_color() {
 }
 role_cmd() {
   case "$1" in
+    architect|reviewer) echo "$CLAUDE_CMD_OPUS" ;;
     designer) echo "$CLAUDE_CMD_HAIKU" ;;
-    *)        echo "$CLAUDE_CMD" ;;
+    *)        echo "$CLAUDE_CMD_SONNET" ;;
   esac
 }
 

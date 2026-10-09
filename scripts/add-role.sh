@@ -27,7 +27,10 @@ ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
 DEV_ROLES=(frontend backend mobile devops)
 SUPPORT_ROLES=(designer architect qa reviewer)
 
+# CLAUDE_CMD = Lead tier (Sonnet 5) — ตรงกับ start-team.sh; add-role.sh ไม่ใช้กับ role ใด (เก็บไว้ให้ตรงกัน)
 CLAUDE_CMD="claude --model claude-sonnet-5 --dangerously-skip-permissions; read"
+CLAUDE_CMD_SONNET="claude --model claude-sonnet-5-5 --dangerously-skip-permissions; read"
+CLAUDE_CMD_OPUS="claude --model claude-opus-5-5 --dangerously-skip-permissions; read"
 CLAUDE_CMD_HAIKU="claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions; read"
 
 ROLE="${1:-}"
@@ -90,8 +93,9 @@ role_color() {
 }
 role_cmd() {
   case "$1" in
+    architect|reviewer) echo "$CLAUDE_CMD_OPUS" ;;
     designer) echo "$CLAUDE_CMD_HAIKU" ;;
-    *)        echo "$CLAUDE_CMD" ;;
+    *)        echo "$CLAUDE_CMD_SONNET" ;;
   esac
 }
 
