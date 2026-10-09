@@ -288,7 +288,11 @@ tmux set-option -g -t "$SESSION" mouse on
 tmux set-option -w -t "$SESSION:0" pane-border-status top
 tmux set-option -w -t "$SESSION:0" pane-border-style "fg=colour240"
 tmux set-option -w -t "$SESSION:0" pane-active-border-style "fg=yellow,bold"
-tmux set-option -w -t "$SESSION:0" pane-border-format " #[fg=#{@role_color},bold]● #{@role} "
+# border: "● <Role>  ⎇ <branch>" — branch มาจาก scripts/pane-branch.sh (อ่านจาก pane option @workdir,
+# fallback pane_current_path; ไม่ใช่ repo = ไม่แสดง ⎇). status-interval 5s = รอบ refresh ของ #() (set ระดับ session)
+PANE_BORDER_FORMAT=" #[fg=#{@role_color},bold]● #{@role}#[default]#($SCRIPT_DIR/scripts/pane-branch.sh -l \"#{@workdir}\" \"#{pane_current_path}\") "
+tmux set-option -w -t "$SESSION:0" pane-border-format "$PANE_BORDER_FORMAT"
+tmux set-option -t "$SESSION" status-interval 5
 tmux set-option -p -t "$SESSION:0.0" @role "Lead"
 tmux set-option -p -t "$SESSION:0.0" @role_color "yellow"
 
@@ -338,10 +342,21 @@ fi
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 # Note: 'model:' frontmatter in agent .md files applies only when spawned via Agent tool, not bare CLI
 # — designer launches with Haiku, others with Sonnet (see role_cmd)
+# @workdir = repo ที่ agent ทำงาน (pane cwd คือ /tmp/agent-<role> ไม่ใช่ repo) — ใช้แสดง branch บน border
+# default จาก projects.json: frontend->web, backend->api, mobile->mobile; role อื่นว่าง (Lead ใช้ pane_current_path)
+role_workdir() {
+  local key
+  case "$1" in
+    frontend) key=web ;; backend) key=api ;; mobile) key=mobile ;; *) return 0 ;;
+  esac
+  jq -r --arg p "$PROJECT" --arg k "$key" '.projects[$p].paths[$k] // ""' "$PROJECTS_JSON"
+}
 for _r in "${SELECTED_ROLES[@]}"; do
   _p=$(get_pane "$_r")
   tmux set-option -p -t "$_p" @role "$(role_label "$_r")"
   tmux set-option -p -t "$_p" @role_color "$(role_color "$_r")"
+  _wd=$(role_workdir "$_r")
+  if [[ -n "$_wd" ]]; then tmux set-option -p -t "$_p" @workdir "$_wd"; fi
 done
 
 # 9b. RTK Stats pane (optional — only if rtk is installed)

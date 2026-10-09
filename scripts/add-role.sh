@@ -178,6 +178,15 @@ fi
 tmux set-option -p -t "$NEW_PANE" @role "$(role_label "$ROLE")"
 tmux set-option -p -t "$NEW_PANE" @role_color "$(role_color "$ROLE")"
 
+# @workdir default จาก projects.json (frontend->web, backend->api, mobile->mobile; อื่นว่าง) — ใช้แสดง branch บน border
+case "$ROLE" in
+  frontend) _wd_key=web ;; backend) _wd_key=api ;; mobile) _wd_key=mobile ;; *) _wd_key="" ;;
+esac
+if [[ -n "$_wd_key" ]]; then
+  _wd=$(jq -r --arg p "$PROJECT" --arg k "$_wd_key" '.projects[$p].paths[$k] // ""' "$PROJECTS_JSON")
+  if [[ -n "$_wd" ]]; then tmux set-option -p -t "$NEW_PANE" @workdir "$_wd"; fi
+fi
+
 # ──────────────────────────────────────────────────────────────
 # Auto-answer trust prompt (new /tmp dir → Claude asks once)
 # ──────────────────────────────────────────────────────────────

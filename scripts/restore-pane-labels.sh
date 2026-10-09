@@ -119,7 +119,11 @@ PANE_REVIEWER=$(parse_pane_id "reviewer")
 tmux set-option -w -t "$SESSION:0" pane-border-status top
 tmux set-option -w -t "$SESSION:0" pane-border-style "fg=colour240"
 tmux set-option -w -t "$SESSION:0" pane-active-border-style "fg=yellow,bold"
-tmux set-option -w -t "$SESSION:0" pane-border-format " #[fg=#{@role_color},bold]● #{@role} "
+# border: "● <Role>  ⎇ <branch>" — branch มาจาก scripts/pane-branch.sh (อ่านจาก pane option @workdir,
+# fallback pane_current_path; ไม่ใช่ repo = ไม่แสดง ⎇). status-interval 5s = รอบ refresh ของ #() (set ระดับ session)
+PANE_BORDER_FORMAT=" #[fg=#{@role_color},bold]● #{@role}#[default]#($SCRIPT_DIR/scripts/pane-branch.sh -l \"#{@workdir}\" \"#{pane_current_path}\") "
+tmux set-option -w -t "$SESSION:0" pane-border-format "$PANE_BORDER_FORMAT"
+tmux set-option -t "$SESSION" status-interval 5
 
 # Lead pane (index 0 is always stable)
 tmux set-option -p -t "$SESSION:0.0" @role "Lead"

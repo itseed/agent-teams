@@ -284,6 +284,10 @@ tmux set-option -p -t "$PANE_REVIEWER" @role "Reviewer" ; tmux set-option -p -t 
 
 เหตุผล: paste ยาว = lossy + เพี้ยนตอน retry; paste เป็น pointer = agent เห็นต้นฉบับเต็มเสมอ และส่งซ้ำได้ปลอดภัย
 
+#### ก่อน dispatch: ตั้ง `@workdir` ถ้า repo ต่างจาก default (border แสดง `⎇ <branch>`)
+
+pane border ของ teammate แสดง branch ของ repo ใน pane option `@workdir` (default จาก `projects.json`: frontend→web, backend→api, mobile→mobile; role อื่นว่าง) — ถ้างานนี้ต้องทำคนละ repo ให้รัน `./scripts/set-pane-workdir.sh <role> <path-ของ-repo>` ก่อนส่งงาน (เช่น devops deploy fuse-api → `set-pane-workdir.sh devops /Users/kriangkrai/project/fuse-platform/fuse-api`)
+
 #### วิธีส่ง — ใช้ `scripts/team-send.sh` เท่านั้น (บังคับ)
 
 ```bash
