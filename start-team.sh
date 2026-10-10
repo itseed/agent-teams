@@ -31,14 +31,11 @@ fi
 SESSION="dev-team"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
-# Model tiers (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
-#   Opus 5.5   — Lead, architect, reviewer (orchestrate/ออกแบบ/วิเคราะห์เชิงลึก/review/security)
-#   Sonnet 5.5 — frontend, backend, mobile, devops, qa (เขียนโค้ด/infra/ทดสอบ)
-#   Haiku      — designer (เขียน design spec เป็นหลัก)
+# Model (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
+#   Opus 5.5 — ทุก role + Lead (2026-10-10: ใช้ company account แล้ว; tier เดิม Opus/Sonnet/Haiku จาก 080ff0c
+#   มีไว้ประหยัด quota ของ personal plan — เลิกใช้แล้ว) ความต่างระหว่าง role อยู่ที่ --effort อย่างเดียว
 # Reasoning effort ต่อ role (--effort): high = Lead/architect/reviewer/qa · medium = frontend/backend/mobile/devops · low = designer
 MODEL_OPUS="claude-opus-5-5"
-MODEL_SONNET="claude-sonnet-5-5"
-MODEL_HAIKU="claude-haiku-4-5-20251001"
 # claude_cmd <model> <effort> — effort ผ่าน `claude --effort <low|medium|high|xhigh|max>` (ยืนยันจาก claude --help v2.1.291)
 claude_cmd() { echo "claude --model $1 --effort $2 --dangerously-skip-permissions; read"; }
 
@@ -174,10 +171,9 @@ role_color() {
 }
 role_cmd() {
   case "$1" in
-    architect|reviewer) claude_cmd "$MODEL_OPUS" high ;;
-    qa)                 claude_cmd "$MODEL_SONNET" high ;;
-    designer)           claude_cmd "$MODEL_HAIKU" low ;;
-    *)                  claude_cmd "$MODEL_SONNET" medium ;;  # frontend, backend, mobile, devops
+    architect|reviewer|qa) claude_cmd "$MODEL_OPUS" high ;;
+    designer)              claude_cmd "$MODEL_OPUS" low ;;
+    *)                     claude_cmd "$MODEL_OPUS" medium ;;  # frontend, backend, mobile, devops
   esac
 }
 
@@ -341,7 +337,7 @@ fi
 
 # 8. Set @role + @role_color per pane using stable IDs (not visual indexes)
 # Note: 'model:' frontmatter in agent .md files applies only when spawned via Agent tool, not bare CLI
-# — designer launches with Haiku, others with Sonnet (see role_cmd)
+# — every role launches with Opus 5.5; only --effort differs per role (see role_cmd)
 # @workdir = repo ที่ agent ทำงาน (pane cwd คือ /tmp/agent-<role> ไม่ใช่ repo) — ใช้แสดง branch บน border
 # default จาก projects.json: frontend->web, backend->api, mobile->mobile; role อื่นว่าง (Lead ใช้ pane_current_path)
 role_workdir() {

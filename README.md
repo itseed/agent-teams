@@ -135,14 +135,14 @@ sequenceDiagram
 
 | Role | Model | Scope |
 |---|---|---|
-| **Frontend** | Sonnet | React, Next.js, TypeScript, browser extension + unit tests |
-| **Backend** | Sonnet | REST/GraphQL, database, business logic + unit tests |
-| **Mobile** | Sonnet | React Native, Capacitor.js, iOS/Android native modules + unit tests |
-| **DevOps** | Sonnet | CI/CD, Docker, deployment, env config |
-| **Designer** | Haiku | Design spec, design tokens, UX review, a11y (ไม่เขียน feature code) |
-| **Architect** | Sonnet | System architecture, ADR, tech decisions, module/data boundaries (ไม่เขียน feature code — upstream ของ dev) |
-| **QA** | Sonnet | Integration tests, e2e tests, edge cases, regression |
-| **Reviewer** | Sonnet | Code quality, security (OWASP + Snyk), code-level performance |
+| **Frontend** | Opus 5.5 | React, Next.js, TypeScript, browser extension + unit tests |
+| **Backend** | Opus 5.5 | REST/GraphQL, database, business logic + unit tests |
+| **Mobile** | Opus 5.5 | React Native, Capacitor.js, iOS/Android native modules + unit tests |
+| **DevOps** | Opus 5.5 | CI/CD, Docker, deployment, env config |
+| **Designer** | Opus 5.5 | Design spec, design tokens, UX review, a11y (ไม่เขียน feature code) |
+| **Architect** | Opus 5.5 | System architecture, ADR, tech decisions, module/data boundaries (ไม่เขียน feature code — upstream ของ dev) |
+| **QA** | Opus 5.5 | Integration tests, e2e tests, edge cases, regression |
+| **Reviewer** | Opus 5.5 | Code quality, security (OWASP + Snyk), code-level performance |
 
 > Model ถูก pin ใน `start-team.sh` (ไม่ขึ้นกับ default ของเครื่อง) — UI work ทุก role เรียก skill `frontend-design` เพื่อเลี่ยงดีไซน์ generic
 

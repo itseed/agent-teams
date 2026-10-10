@@ -164,8 +164,7 @@ Spawn ด้วย subagent definition ที่มีใน `.claude/agents/` �
     - ถ้าจำเป็นต้องมี suffix (งานหลายชิ้น role เดียว) ชื่อไฟล์ **ต้องขึ้นต้นด้วย `<role>` เป๊ะ** เช่น `frontend-2.log` (helper จับ prefix ให้) — ห้ามย่อ/เปลี่ยน token เช่น `fe.log`
     - งานที่ไม่เข้า 8 role นี้จะ **ไม่มี pane** แสดง — เลี่ยงหรือ map เข้า role ที่ใกล้สุด
 - **ส่ง `model` param ต่อ role ตอน spawn (บังคับ)** — เพราะ general-purpose **ไม่อ่าน frontmatter** model tiers จึงไม่ทำงานเองใน v2 ต้องระบุเอง:
-  - `designer` → **`haiku`**
-  - `frontend`, `backend`, `mobile`, `devops`, `architect`, `qa`, `reviewer` → **`sonnet`**
+  - ทุก role (`frontend`, `backend`, `mobile`, `devops`, `designer`, `architect`, `qa`, `reviewer`) → **`opus`** (Opus 5.5 — company account, 2026-10-10)
 - **ก่อน spawn task ใหม่ (ไม่ใช่ follow-up ต่อเนื่องจาก task เดิม) ให้ archive+truncate log ของ role นั้นก่อนเสมอ**
   (คู่กับ `/clear` ของ v1 — ดู [เคลียร์ context ก่อนเริ่มงานใหม่](#เคลียร์-context-ก่อนเริ่มงานใหม่-บังคับ)) กัน
   `/tmp/agent-logs/<role>.log` โตไม่มีที่สิ้นสุดข้ามหลาย task — truncate ไม่ลบไฟล์ จึง pane ที่ `tail -F`
