@@ -9,39 +9,14 @@
 
 set -euo pipefail
 
-# ──────────────────────────────────────────────────────────────
-# Windows native guard (must run inside WSL2, not CMD/PowerShell)
-# ──────────────────────────────────────────────────────────────
-if [[ "${OS:-}" == "Windows_NT" ]] || \
-   { [[ -f /proc/version ]] && grep -qi "microsoft" /proc/version && [[ -z "${WSL_DISTRO_NAME:-}" ]]; }; then
-  cat >&2 <<'EOF'
-Error: start-team.sh ต้องรันใน WSL2 เท่านั้น ไม่รองรับ Windows CMD/PowerShell โดยตรง
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"   # ALL_ROLES, role_*, claude_cmd, provision_agent_dir, ...
 
-วิธีแก้:
-  1. ติดตั้ง WSL2 ด้วย setup-windows.ps1 (PowerShell as Administrator):
-       .\setup-windows.ps1
-  2. เปิด Ubuntu terminal แล้วไปที่ repo:
-       cd ~/agent-teams
-  3. รันใหม่:
-       ./start-team.sh
-EOF
-  exit 1
-fi
+windows_guard "start-team.sh"
 
 SESSION="dev-team"
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
-# Model (pinned explicitly so launch is deterministic, ไม่ขึ้นกับ default ของเครื่อง):
-#   Opus 5.5 — ทุก role + Lead (2026-10-10: ใช้ company account แล้ว; tier เดิม Opus/Sonnet/Haiku จาก 080ff0c
-#   มีไว้ประหยัด quota ของ personal plan — เลิกใช้แล้ว) ความต่างระหว่าง role อยู่ที่ --effort อย่างเดียว
-# Reasoning effort ต่อ role (--effort): high = Lead/architect/reviewer/qa · medium = frontend/backend/mobile/devops · low = designer
-MODEL_OPUS="claude-opus-5-5"
-# claude_cmd <model> <effort> — effort ผ่าน `claude --effort <low|medium|high|xhigh|max>` (ยืนยันจาก claude --help v2.1.291)
-claude_cmd() { echo "claude --model $1 --effort $2 --dangerously-skip-permissions; read"; }
-
-ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
-DEV_ROLES=(frontend backend mobile devops)        # คอลัมน์กลาง
-SUPPORT_ROLES=(designer architect qa reviewer)    # คอลัมน์ขวา
 
 # ──────────────────────────────────────────────────────────────
 # Parse args: [PROJECT_NAME] [--roles a,b,c]
@@ -150,95 +125,17 @@ if ! role_selected qa || ! role_selected reviewer; then
   echo ""
 fi
 
-# ──────────────────────────────────────────────────────────────
-# Per-role attributes (label / border color / launch command)
-# ──────────────────────────────────────────────────────────────
-role_label() {
-  case "$1" in
-    frontend) echo "Frontend" ;;  backend) echo "Backend" ;;
-    mobile)   echo "Mobile"   ;;  devops)  echo "DevOps"  ;;
-    designer) echo "Designer" ;;  architect) echo "Architect" ;;
-    qa)       echo "QA"       ;;  reviewer) echo "Reviewer" ;;
-  esac
-}
-role_color() {
-  case "$1" in
-    frontend) echo "cyan"      ;;  backend)   echo "blue"      ;;
-    mobile)   echo "magenta"   ;;  devops)    echo "green"     ;;
-    designer) echo "colour211" ;;  architect) echo "colour141" ;;
-    qa)       echo "colour208" ;;  reviewer)  echo "red"       ;;
-  esac
-}
-role_cmd() {
-  case "$1" in
-    architect|reviewer|qa) claude_cmd "$MODEL_OPUS" high ;;
-    designer)              claude_cmd "$MODEL_OPUS" low ;;
-    *)                     claude_cmd "$MODEL_OPUS" medium ;;  # frontend, backend, mobile, devops
-  esac
-}
-
-# Dynamic pane-id storage (bash 3.2 compatible — no associative arrays)
-pane_var() { echo "PANE_$(echo "$1" | tr '[:lower:]' '[:upper:]')"; }
-set_pane() { eval "$(pane_var "$1")=\"\$2\""; }
-get_pane() { eval "echo \"\${$(pane_var "$1"):-}\""; }
-
 LEAD_PATH="$SCRIPT_DIR"
 
 # ──────────────────────────────────────────────────────────────
-# Create per-agent temp dirs with CLAUDE.md (role at system-prompt level)
-# Agents start here so Claude reads the specialist role definition before
+# Per-agent temp dirs with CLAUDE.md (role + team protocol + project context)
+# Agents start in /tmp/agent-<role>/ so Claude reads the specialist role before
 # any task arrives — prevents Lead CLAUDE.md from taking over.
-# Project working directory is injected per-task by Lead.
 # ──────────────────────────────────────────────────────────────
 create_agent_dirs() {
-  local roles=("${SELECTED_ROLES[@]}")
-
-  # Build project context to inject into every agent's CLAUDE.md
-  local proj_description
-  proj_description=$(jq -r --arg p "$PROJECT" '.projects[$p].description // ""' "$PROJECTS_JSON" 2>/dev/null || true)
-
-  local proj_paths_md
-  proj_paths_md=$(jq -r --arg p "$PROJECT" \
-    '.projects[$p].paths | to_entries[] | "- **\(.key)**: \(.value)"' \
-    "$PROJECTS_JSON" 2>/dev/null || true)
-
-  # Status files: agents mirror their state here so Lead can always check
-  # even when a tmux report-back gets lost (fire-and-forget)
-  mkdir -p /tmp/agent-status
-  for role in "${roles[@]}"; do
-    > "/tmp/agent-status/${role}.md"
-  done
-
-  for role in "${roles[@]}"; do
-    local dir="/tmp/agent-${role}"
-    local src="$SCRIPT_DIR/.claude/agents/${role}.md"
-    mkdir -p "$dir" "$dir/.claude"
-    [[ -f "$src" ]] || continue
-    # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
-    awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
-    # Enable auto-compact so agents don't hang at 100% context; disable Remote Control
-    # so teammate panes (running from /tmp/agent-<role>, not the repo root) don't each
-    # register as a separate RC session — only Lead should show up in the RC session list
-    echo '{"autoCompactEnabled":true,"disableRemoteControl":true}' > "$dir/.claude/settings.json"
-
-    # Append project context so agents know where the codebase lives on every new session
-    cat >> "$dir/CLAUDE.md" <<CONTEXT
-
----
-
-## Active Project: $PROJECT
-${proj_description:+$proj_description$'\n'}
-### Project Paths
-$proj_paths_md
-
-### สิ่งที่ต้องทำเมื่อเริ่ม session ใหม่
-ก่อนรับงานแรก ให้อ่านไฟล์เหล่านี้ในแต่ละ path ที่เกี่ยวข้องกับ role ของคุณ:
-- \`CLAUDE.md\` — conventions, architecture, คำสั่ง dev ของ project
-- \`README.md\` — overview และ setup
-- \`DESIGN.md\` — design system, tokens, UX guidelines (ถ้ามี)
-
-หลังอ่านแล้วรอรับ task จาก Lead ได้เลย
-CONTEXT
+  local role
+  for role in "${SELECTED_ROLES[@]}"; do
+    provision_agent_dir "$role" "$PROJECT" "$PROJECTS_JSON"
   done
 }
 
@@ -340,18 +237,11 @@ fi
 # — every role launches with Opus 5.5; only --effort differs per role (see role_cmd)
 # @workdir = repo ที่ agent ทำงาน (pane cwd คือ /tmp/agent-<role> ไม่ใช่ repo) — ใช้แสดง branch บน border
 # default จาก projects.json: frontend->web, backend->api, mobile->mobile; role อื่นว่าง (Lead ใช้ pane_current_path)
-role_workdir() {
-  local key
-  case "$1" in
-    frontend) key=web ;; backend) key=api ;; mobile) key=mobile ;; *) return 0 ;;
-  esac
-  jq -r --arg p "$PROJECT" --arg k "$key" '.projects[$p].paths[$k] // ""' "$PROJECTS_JSON"
-}
 for _r in "${SELECTED_ROLES[@]}"; do
   _p=$(get_pane "$_r")
   tmux set-option -p -t "$_p" @role "$(role_label "$_r")"
   tmux set-option -p -t "$_p" @role_color "$(role_color "$_r")"
-  _wd=$(role_workdir "$_r")
+  _wd=$(role_workdir "$_r" "$PROJECT" "$PROJECTS_JSON")
   if [[ -n "$_wd" ]]; then tmux set-option -p -t "$_p" @workdir "$_wd"; fi
 done
 
@@ -367,19 +257,6 @@ fi
 
 # 9. Auto-answer trust prompt for agent panes (each pane runs in background)
 #    /tmp/agent-<role>/ is a new directory — Claude Code asks once per directory
-auto_trust() {
-  local pane="$1"
-  local i=0
-  while [[ $i -lt 30 ]]; do
-    if tmux capture-pane -t "$pane" -p 2>/dev/null | grep -q "trust this folder"; then
-      tmux send-keys -t "$pane" "1" Enter
-      return
-    fi
-    sleep 0.5
-    ((i++))
-  done
-}
-
 for _r in "${SELECTED_ROLES[@]}"; do
   auto_trust "$(get_pane "$_r")" &
 done
@@ -509,10 +386,7 @@ MSG
 )
 
   # Wait for Lead's Claude prompt before injecting (max 40s)
-  local i=0
-  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "❯|bypass permissions"; do
-    sleep 1; ((i++)); [[ $i -gt 40 ]] && break
-  done
+  wait_for_claude_prompt "$pane" 40 || true
 
   tmux set-buffer "$msg" && tmux paste-buffer -t "$pane"
   tmux send-keys -t "$pane" Enter

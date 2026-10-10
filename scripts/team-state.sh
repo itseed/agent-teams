@@ -41,9 +41,12 @@ case "$CMD" in
       echo "Error: no table row for role '$ROLE' in $STATE_FILE" >&2; exit 1
     fi
     # Replace status ($3) + task ($4) in the role's table row, keep pane id ($2)
+    # "|" in text would split the markdown table → replace with "/"; pass via ENVIRON
+    # (awk -v would interpret backslash escapes in the task text)
     TMP=$(mktemp)
-    awk -F'|' -v OFS='|' -v role="$ROLE" -v status="$STATUS" -v task="$TASK" '
-      $2 ~ "^ *"role" *$" { $4 = " " status " "; $5 = " " task " " }
+    TS_STATUS="${STATUS//|//}" TS_TASK="${TASK//|//}" \
+    awk -F'|' -v OFS='|' -v role="$ROLE" '
+      $2 ~ "^ *"role" *$" { $4 = " " ENVIRON["TS_STATUS"] " "; $5 = " " ENVIRON["TS_TASK"] " " }
       { print }
     ' "$STATE_FILE" > "$TMP" && mv "$TMP" "$STATE_FILE"
     touch_timestamp
@@ -54,8 +57,8 @@ case "$CMD" in
     [[ -n "$STAGE" ]] || usage
     # Replace the single line after "## Pipeline Stage"
     TMP=$(mktemp)
-    awk -v stage="$STAGE" '
-      prev == "## Pipeline Stage" { print stage; prev = $0; next }
+    TS_STAGE="$STAGE" awk '
+      prev == "## Pipeline Stage" { print ENVIRON["TS_STAGE"]; prev = $0; next }
       { print; prev = $0 }
     ' "$STATE_FILE" > "$TMP" && mv "$TMP" "$STATE_FILE"
     touch_timestamp

@@ -46,43 +46,14 @@ EOF
   shift
 done
 
-# ──────────────────────────────────────────────────────────────
-# Resolve session name: --session > tmux reality (v1/v2) > .team-state.md Mode (last-resort guess)
-# ──────────────────────────────────────────────────────────────
-resolve_session() {
-  if [[ -n "$SESSION_OVERRIDE" ]]; then
-    echo "$SESSION_OVERRIDE"
-    return 0
-  fi
-
-  local v1_up=0 v2_up=0
-  tmux has-session -t dev-team    2>/dev/null && v1_up=1
-  tmux has-session -t dev-team-v2 2>/dev/null && v2_up=1
-
-  if [[ "$v1_up" -eq 1 && "$v2_up" -eq 1 ]]; then
-    echo "Error: ทั้ง 'dev-team' (v1) และ 'dev-team-v2' (v2) กำลังรันอยู่พร้อมกัน — ระบุ session ที่ต้องการด้วย --session dev-team หรือ --session dev-team-v2" >&2
-    exit 1
-  elif [[ "$v1_up" -eq 1 ]]; then
-    echo "dev-team"; return 0
-  elif [[ "$v2_up" -eq 1 ]]; then
-    echo "dev-team-v2"; return 0
-  fi
-
-  if [[ -f "$STATE_FILE" ]] && grep -q "_Mode: v2" "$STATE_FILE"; then
-    echo "dev-team-v2"
-  else
-    echo "dev-team"
-  fi
-}
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"   # resolve_session: --session > tmux reality (v1/v2) > .team-state.md Mode
 
 SESSION="$(resolve_session)"
 
 command -v python3 >/dev/null || { echo "Error: python3 required (checksum calc)" >&2; exit 1; }
 tmux has-session -t "$SESSION" 2>/dev/null || { echo "Error: session '$SESSION' not found" >&2; exit 1; }
 [[ -f "$STATE_FILE" ]] || { echo "Error: $STATE_FILE not found" >&2; exit 1; }
-
-DEV_ROLES=(frontend backend mobile devops)
-SUPPORT_ROLES=(designer architect qa reviewer)
 
 parse_pane_id() {
   local role="$1"

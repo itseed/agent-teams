@@ -45,34 +45,8 @@ EOF
   shift
 done
 
-# ──────────────────────────────────────────────────────────────
-# Resolve session name: --session > tmux reality (v1/v2) > .team-state.md Mode (last-resort guess)
-# ──────────────────────────────────────────────────────────────
-resolve_session() {
-  if [[ -n "$SESSION_OVERRIDE" ]]; then
-    echo "$SESSION_OVERRIDE"
-    return 0
-  fi
-
-  local v1_up=0 v2_up=0
-  tmux has-session -t dev-team    2>/dev/null && v1_up=1
-  tmux has-session -t dev-team-v2 2>/dev/null && v2_up=1
-
-  if [[ "$v1_up" -eq 1 && "$v2_up" -eq 1 ]]; then
-    echo "Error: ทั้ง 'dev-team' (v1) และ 'dev-team-v2' (v2) กำลังรันอยู่พร้อมกัน — ระบุ session ที่ต้องการด้วย --session dev-team หรือ --session dev-team-v2" >&2
-    exit 1
-  elif [[ "$v1_up" -eq 1 ]]; then
-    echo "dev-team"; return 0
-  elif [[ "$v2_up" -eq 1 ]]; then
-    echo "dev-team-v2"; return 0
-  fi
-
-  if [[ -f "$STATE_FILE" ]] && grep -q "_Mode: v2" "$STATE_FILE"; then
-    echo "dev-team-v2"
-  else
-    echo "dev-team"
-  fi
-}
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"   # resolve_session: --session > tmux reality (v1/v2) > .team-state.md Mode
 
 SESSION="$(resolve_session)"
 
@@ -106,15 +80,6 @@ parse_pane_id() {
   grep -i "| ${role} " "$STATE_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}' || true
 }
 
-PANE_FRONTEND=$(parse_pane_id "frontend")
-PANE_DESIGNER=$(parse_pane_id "designer")
-PANE_ARCHITECT=$(parse_pane_id "architect")
-PANE_BACKEND=$(parse_pane_id "backend")
-PANE_MOBILE=$(parse_pane_id "mobile")
-PANE_DEVOPS=$(parse_pane_id "devops")
-PANE_QA=$(parse_pane_id "qa")
-PANE_REVIEWER=$(parse_pane_id "reviewer")
-
 # Re-apply pane border options (window level)
 tmux set-option -w -t "$SESSION:0" pane-border-status top
 tmux set-option -w -t "$SESSION:0" pane-border-style "fg=colour240"
@@ -145,14 +110,9 @@ apply_label() {
 }
 
 echo "Restoring pane labels in session '$SESSION'..."
-apply_label "$PANE_FRONTEND" "Frontend${LABEL_SUFFIX}" "cyan"
-apply_label "$PANE_DESIGNER" "Designer${LABEL_SUFFIX}" "colour211"
-apply_label "$PANE_ARCHITECT" "Architect${LABEL_SUFFIX}" "colour141"
-apply_label "$PANE_BACKEND"  "Backend${LABEL_SUFFIX}"  "blue"
-apply_label "$PANE_MOBILE"   "Mobile${LABEL_SUFFIX}"   "magenta"
-apply_label "$PANE_DEVOPS"   "DevOps${LABEL_SUFFIX}"   "green"
-apply_label "$PANE_QA"       "QA${LABEL_SUFFIX}"       "colour208"
-apply_label "$PANE_REVIEWER" "Reviewer${LABEL_SUFFIX}" "red"
+for r in "${ALL_ROLES[@]}"; do
+  apply_label "$(parse_pane_id "$r")" "$(role_label "$r")${LABEL_SUFFIX}" "$(role_color "$r")"
+done
 
 echo ""
 echo "Done — pane labels restored from .team-state.md"
