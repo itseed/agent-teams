@@ -14,6 +14,12 @@
 
 set -euo pipefail
 
+# Byte-wise text handling. macOS awk's substr counts bytes, so FRAG can end in
+# the middle of a multi-byte (e.g. Thai) character; grep in a UTF-8 locale then
+# fails with "illegal byte sequence" (rc 2) and pending() reports a false
+# "submitted". In the C locale awk and grep both work on bytes, which matches.
+export LC_ALL=C
+
 PANE="${1:?usage: team-send.sh <pane> [message]   (message on stdin if omitted)}"
 shift || true
 
