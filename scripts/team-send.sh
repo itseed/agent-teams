@@ -32,26 +32,66 @@ fi
 tmux capture-pane -t "$PANE" -p >/dev/null 2>&1 \
   || { echo "team-send: pane '$PANE' not found" >&2; exit 1; }
 
-# Load into a tmux buffer (multiline/quote-safe) and paste
-printf '%s' "$MSG" | tmux load-buffer -
-tmux paste-buffer -t "$PANE"
+# Strip ONE trailing newline (an extra Enter inside the paste would split/submit early)
+MSG="${MSG%$'\n'}"
+[[ -n "$MSG" ]] || { echo "team-send: empty message" >&2; exit 1; }
 
-# Let Claude Code ingest the pasted input before submitting
-sleep 0.5
+# A short piece of the first non-empty line, used to spot the message still
+# sitting in the input box (long pastes collapse to "[Pasted text #N ...]")
+FRAG="$(printf '%s\n' "$MSG" | awk 'NF{sub(/^[ \t]+/,""); print substr($0,1,20); exit}')"
+
+capture() { tmux capture-pane -t "$PANE" -p 2>/dev/null || true; }
+
+# Text of Claude Code's input box = lines between the last two ──── rules
+input_box() {
+  capture | awk '{ l[NR]=$0 } index($0,"────────")==1 { p=r; r=NR }
+                 END { if (p && r) for (i=p+1; i<r; i++) print l[i] }'
+}
+
+# pending = our message (or its paste chip) is still unsubmitted in the input box
+pending() {
+  local box; box="$(input_box)"
+  [[ -n "$box" ]] || return 1
+  grep -qF -- "[Pasted text" <<<"$box" && return 0
+  [[ -n "$FRAG" ]] && grep -qF -- "$FRAG" <<<"$box"
+}
+
+# busy = agent mid-turn; never send Esc then (it would interrupt the turn)
+busy()   { capture | tail -15 | grep -qi "esc to interrupt"; }
+queued() { capture | tail -15 | grep -q "Press up to edit queued"; }
+
+# Wait until the pane stops changing (paste ingested), max ~3s
+settle() {
+  local prev="" cur i=0
+  while [[ $i -lt 15 ]]; do
+    sleep 0.2
+    cur="$(capture)"
+    [[ $i -gt 0 && "$cur" == "$prev" ]] && return 0
+    prev="$cur"; i=$((i + 1))
+  done
+}
+
+# Bracketed paste (-p) from a private buffer (-d deletes it afterwards) so
+# multi-line text lands as one paste instead of line-by-line keystrokes
+BUF="team-send-$$"
+printf '%s' "$MSG" | tmux load-buffer -b "$BUF" -
+tmux paste-buffer -p -d -b "$BUF" -t "$PANE"
+
+settle
 tmux send-keys -t "$PANE" Enter
 
-# Confirm it submitted; nudge if the prompt is stuck holding queued input
-i=0
-while [[ $i -lt 3 ]]; do
+# Verify: input box no longer holds our text (or it was queued behind a busy
+# turn, which Claude Code delivers itself). Retry Enter, then Esc+Enter.
+for attempt in 1 2 3 4; do
   sleep 0.5
-  if ! tmux capture-pane -t "$PANE" -p 2>/dev/null | tail -6 \
-       | grep -q "Press up to edit queued"; then
-    exit 0   # input box is clear → submitted
+  if queued || ! pending; then exit 0; fi
+  [[ $attempt -eq 4 ]] && break
+  if [[ $attempt -eq 3 ]] && ! busy; then
+    tmux send-keys -t "$PANE" Escape
+    sleep 0.2
   fi
-  if [[ $i -eq 1 ]]; then tmux send-keys -t "$PANE" Escape; fi
   tmux send-keys -t "$PANE" Enter
-  i=$((i + 1))
 done
 
-echo "team-send: warning — could not confirm submit on '$PANE'; check the pane manually" >&2
-exit 0
+echo "team-send: warning — message still in the input box of '$PANE'; check the pane manually" >&2
+exit 1
