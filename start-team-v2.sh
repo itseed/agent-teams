@@ -20,9 +20,10 @@ windows_guard "start-team-v2.sh"
 
 SESSION="dev-team-v2"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
-# Lead pinned เหมือน v1 (Opus 5.5, effort high). CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS เปิดเฉพาะ v2
-# (ย้ายออกจาก .claude/settings.json — ใน v1 มันทำให้ Agent tool สร้าง teammate pane ชนกับ pane ของ start-team.sh)
-CLAUDE_CMD="CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 $(claude_cmd "$MODEL_OPUS" high)"
+# Lead pinned เหมือน v1 (Opus 5.5, effort high). agent = subagent ปกติของ Claude Code
+# (subagent_type "<role>" จาก .claude/agents/<role>.md) — ไม่เปิด CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+# เพราะ feature นั้นทำให้ Agent tool สร้าง teammate pane ของมันเอง ชนกับ log pane ของสคริปต์นี้
+CLAUDE_CMD="$(claude_cmd "$MODEL_OPUS" high)"
 LOG_DIR="/tmp/agent-logs"
 # Robust per-role log viewer: follows <role>*.log (รวมไฟล์ชื่อเพี้ยนที่ agent สร้าง)
 # แทน `tail -f <role>.log` แบบ exact-name ที่พลาดเมื่อ sub-agent เขียนชื่อไฟล์ไม่ตรง
@@ -293,7 +294,7 @@ _RTK: ${rtk}_
 [Lead ต้อง set หลังอ่าน projects.json]
 
 ## Agents (v2 — on-demand, ไม่ใช่ standing panes)
-Lead spawn agent ผ่าน **Agent tool** ตาม task — ไม่ใช่ tmux paste
+Lead spawn agent ผ่าน **Agent tool** `subagent_type: "<role>"` ตาม task — ไม่ใช่ tmux paste
 Agents เขียน progress ลง \`${LOG_DIR}/<role>.log\` ; panes ด้านขวาคือ \`tail -f\` ของ log เหล่านั้น (ดูได้ ไม่ใช่ task targets)
 
 | Role | Log viewer pane | Log file |
@@ -354,7 +355,7 @@ ${rtk_line}${pane_lines}${inactive_line}
 project: $PROJECT
 $paths_str
 
-[v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
+[v2 — spawn ด้วย Agent tool subagent_type "<role>" (เช่น "frontend"), name = role; log อยู่ที่ /tmp/agent-logs/<role>.log]
 รอรับ task จากผู้ใช้
 MSG
 )

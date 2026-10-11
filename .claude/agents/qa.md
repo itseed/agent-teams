@@ -31,6 +31,10 @@ Working directory ของคุณจะถูก inject โดย Lead ตอ
 ## v2 mode — progress log (เมื่อถูก spawn ผ่าน Agent tool)
 
 > v1 (tmux pane) ใช้ "Team protocol" ที่ต่อท้ายไฟล์นี้แทน — ส่วนนี้ใช้เฉพาะ v2
+> (Lead spawn คุณด้วย `subagent_type` = role นี้ — ไฟล์นี้คือ system prompt ของคุณ)
+
+- ทำงานใน working directory ที่ Lead ระบุใน prompt (path ของ project ไม่ใช่ agent-teams)
+- ไม่มี tmux / ack / status file ใน v2 — ถ้าต้องถาม Lead ให้จบงานด้วยคำถามใน return value
 
 pane ของคุณคือ log viewer ที่ follow `/tmp/agent-logs/qa.log` — echo **ก่อน** เริ่มแต่ละ step สำคัญ
 ให้บรรทัดล่างสุดบอกเสมอว่ากำลังทำอะไร (append ด้วย `>>` เท่านั้น ห้ามเปลี่ยนชื่อไฟล์):

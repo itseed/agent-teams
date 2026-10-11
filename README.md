@@ -15,11 +15,13 @@ Multi-agent dev team ที่ใช้ Claude Code + tmux — **Lead** หน�
 | | **v1** — `start-team.sh` (default) | **v2** — `start-team-v2.sh` |
 |---|---|---|
 | tmux session name | `dev-team` | `dev-team-v2` |
-| Agent | Claude 8 process รันค้างใน pane | spawn on-demand ผ่าน **Agent tool** |
+| Agent | Claude 8 process รันค้างใน pane | spawn on-demand ผ่าน **Agent tool** (`subagent_type: "<role>"` จาก `.claude/agents/`) |
 | Pane | interactive Claude (พิมพ์คุยได้) | **log viewer** (`tail -f /tmp/agent-logs/<role>.log`) |
 | ส่งงาน | `tmux paste-buffer` + ack | Agent tool (structured prompt) |
 | รับผล | scrape pane + "เสร็จแล้ว" | **return value** ตรงๆ |
 | เด่นเรื่อง | เห็น + คุยกับ agent ได้ตรง | handoff เชื่อถือได้ context ไม่หาย |
+
+v2 ใช้ subagent ปกติของ Claude Code — role .md เป็น system prompt และ model มาจาก frontmatter อัตโนมัติ
 
 v2 = hybrid: ได้ความน่าเชื่อถือแบบ structured spawn **พร้อม** visibility แบบ V1 (เห็น agent แต่ละตัวทำงานแยก pane) — agent เขียน progress ลง log, pane stream แบบ real-time
 

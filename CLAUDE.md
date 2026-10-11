@@ -83,7 +83,7 @@ Shared artifacts (อยู่ใน repo ของ project):
 
 ### Skill ที่ต้องใส่ใน task prompt
 
-role .md wire skill ไว้แล้ว แต่ใส่ใน prompt ด้วยเสมอ (v2 general-purpose ไม่อ่าน role .md):
+role .md wire skill ไว้แล้ว — ใส่ใน prompt ด้วยเสมอเพื่อ reinforce (ทั้ง v1 และ v2):
 
 | งาน | role | skill |
 |---|---|---|
@@ -119,16 +119,24 @@ echo "<prompt>" | ./scripts/team-send.sh <%ID>     # %ID จาก .team-state.m
 - แก้ `.claude/agents/<role>.md` / `templates/agent-protocol.md` มีผลหลัง restart ทีมเท่านั้น
   (ถูก copy ไป `/tmp/agent-<role>/CLAUDE.md` ตอน start) — ต้องการผลทันทีให้ใส่ rule ใน task prompt
 
-## v2 — Agent tool
+## v2 — Agent tool (subagent ของ Claude Code)
 
-- `subagent_type`: role .md มี `name:` แล้ว → ลอง `"<role>"` (เช่น `"frontend"`) ก่อน; ถ้า harness ไม่รู้จัก
-  ให้ใช้ `"general-purpose"` แล้วสั่งใน prompt ให้อ่าน `<agent-teams>/.claude/agents/<role>.md` ก่อนเริ่ม
-- ตั้ง `name` = ชื่อ role ตรงตัว และ `model: "opus"` ทุก role (general-purpose ไม่อ่าน frontmatter)
-- **Log path (บังคับ ไม่งั้นไม่โผล่ใน pane)**: สั่ง literal `"เขียน progress ทุก step ลง /tmp/agent-logs/<role>.log (append >> เท่านั้น ห้ามตั้งชื่อไฟล์เอง)"`
-  — `<role>` ต้องเป็น 1 ใน 8 role; งานหลายชิ้นใช้ suffix ได้แต่ต้องขึ้นต้นด้วย role เช่น `frontend-2.log`
-- ก่อน spawn: `./scripts/archive-role-log.sh <role>` (ถ้าเป็น task ใหม่) แล้ว
-  `echo "⏳ [$(date '+%H:%M:%S')] spawning <role>…" >> /tmp/agent-logs/<role>.log`
-- งาน parallel = หลาย Agent tool call ใน message เดียว
+`.claude/agents/<role>.md` ลงทะเบียนเป็น subagent type แล้ว — role .md เป็น system prompt ของ agent
+(role, skills, verification, กฎ log ของ v2) และ `model:` ใน frontmatter ถูกใช้อัตโนมัติ ไม่ต้องส่ง `model` เอง
+
+- spawn: `subagent_type: "<role>"`, `name: "<role>"` (ตรงกับ log pane), `run_in_background` ตามสะดวก
+- prompt = pointer สั้นๆ แบบเดียวกับ v1 + working dir:
+  ```
+  working dir: <path ของ project จาก projects.json>
+  อ่าน docs/plan/<feature>.md ให้ครบก่อนเริ่ม — ทำตาม acceptance criteria ในนั้น
+  โหลด skill es-agent-excellence + <skill ตาม role> แล้วทำตาม
+  เขียน progress ลง /tmp/agent-logs/<role>.log (append >>) — รายงานผลแบบ outcome-first + verification evidence
+  ```
+- task ใหม่ของ role นั้น → `./scripts/archive-role-log.sh <role>` ก่อน spawn
+- งาน parallel = หลาย Agent tool call ใน message เดียว; ผลกลับเป็น return value — ไม่มี ack/status file
+- งานหลายชิ้น role เดียวพร้อมกัน → log `<role>-2.log` ได้ (ต้องขึ้นต้นด้วยชื่อ role pane ถึงจะเห็น)
+- ถ้า harness ไม่รู้จัก `subagent_type: "<role>"` (เช่นรันจาก dir อื่นที่ไม่มี `.claude/agents/`) → fallback
+  `"general-purpose"` + `model: "opus"` + สั่งให้อ่าน `<agent-teams>/.claude/agents/<role>.md` ก่อนเริ่ม
 
 ## Pipeline และกฎของ Lead
 

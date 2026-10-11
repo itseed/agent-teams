@@ -4,7 +4,7 @@
 # Robust log viewer for one role's pane in v2 mode.
 #
 # Why this exists: agent panes used to run `tail -f /tmp/agent-logs/<role>.log`
-# on an EXACT filename. But a spawned sub-agent (general-purpose, ไม่อ่าน role .md)
+# on an EXACT filename. But a spawned sub-agent (especially a general-purpose fallback that never read role .md)
 # อาจเขียน log ลงไฟล์ชื่อเพี้ยน เช่น `frontend-pms.log` — pane ที่ tail `frontend.log`
 # จึงเห็นว่างเปล่า (อาการ "ชื่อ sub agent ไม่ตรง เลยไม่เห็น log").
 #

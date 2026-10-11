@@ -1,5 +1,12 @@
 # Changelog
 
+### 2026-10-11
+
+**v2 ใช้ subagent ที่ลงทะเบียนแล้ว** — `.claude/agents/<role>.md` มี `name:` แล้ว Lead จึง spawn ด้วย
+`subagent_type: "<role>"` ได้ตรงๆ: role .md เป็น system prompt, `model:` ใน frontmatter ถูกใช้อัตโนมัติ —
+ตัด workaround เดิม (general-purpose + inject role + ส่ง model เอง) ออก, เหลือเป็น fallback เท่านั้น
+`start-team-v2.sh` ไม่เปิด `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` อีก (กัน Agent tool สร้าง teammate pane ชนกับ log pane)
+
 ### 2026-10-10
 
 **Review cleanup** — แก้ bug + ลดความซ้ำซ้อน:
