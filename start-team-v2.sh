@@ -12,33 +12,19 @@
 
 set -euo pipefail
 
-# ──────────────────────────────────────────────────────────────
-# Windows native guard (must run inside WSL2, not CMD/PowerShell)
-# ──────────────────────────────────────────────────────────────
-if [[ "${OS:-}" == "Windows_NT" ]] || \
-   { [[ -f /proc/version ]] && grep -qi "microsoft" /proc/version && [[ -z "${WSL_DISTRO_NAME:-}" ]]; }; then
-  cat >&2 <<'EOF'
-Error: start-team-v2.sh ต้องรันใน WSL2 เท่านั้น ไม่รองรับ Windows CMD/PowerShell โดยตรง
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"   # ALL_ROLES, role_color, claude_cmd, pane storage, ...
 
-วิธีแก้:
-  1. ติดตั้ง WSL2 ด้วย setup-windows.ps1 (PowerShell as Administrator):
-       .\setup-windows.ps1
-  2. เปิด Ubuntu terminal แล้วไปที่ repo:
-       cd ~/agent-teams
-  3. รันใหม่:
-       ./start-team-v2.sh
-EOF
-  exit 1
-fi
+windows_guard "start-team-v2.sh"
 
 SESSION="dev-team-v2"
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
-CLAUDE_CMD="claude --dangerously-skip-permissions; read"
+# Lead pinned เหมือน v1 (Opus 5.5, effort high). agent = subagent ปกติของ Claude Code
+# (subagent_type "<role>" จาก .claude/agents/<role>.md) — ไม่เปิด CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS
+# เพราะ feature นั้นทำให้ Agent tool สร้าง teammate pane ของมันเอง ชนกับ log pane ของสคริปต์นี้
+CLAUDE_CMD="$(claude_cmd "$MODEL_OPUS" high)"
 LOG_DIR="/tmp/agent-logs"
-ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
-DEV_ROLES=(frontend backend mobile devops)        # คอลัมน์กลาง
-SUPPORT_ROLES=(designer architect qa reviewer)    # คอลัมน์ขวา
 # Robust per-role log viewer: follows <role>*.log (รวมไฟล์ชื่อเพี้ยนที่ agent สร้าง)
 # แทน `tail -f <role>.log` แบบ exact-name ที่พลาดเมื่อ sub-agent เขียนชื่อไฟล์ไม่ตรง
 LOG_PANE="$SCRIPT_DIR/scripts/log-pane.sh"
@@ -160,27 +146,8 @@ fi
 # ──────────────────────────────────────────────────────────────
 # Per-role attributes (log pane label / border color)
 # ──────────────────────────────────────────────────────────────
-role_label() {
-  case "$1" in
-    frontend) echo "Frontend log" ;;  backend) echo "Backend log" ;;
-    mobile)   echo "Mobile log"   ;;  devops)  echo "DevOps log"  ;;
-    designer) echo "Designer log" ;;  architect) echo "Architect log" ;;
-    qa)       echo "QA log"       ;;  reviewer) echo "Reviewer log" ;;
-  esac
-}
-role_color() {
-  case "$1" in
-    frontend) echo "cyan"      ;;  backend)   echo "blue"      ;;
-    mobile)   echo "magenta"   ;;  devops)    echo "green"     ;;
-    designer) echo "colour211" ;;  architect) echo "colour141" ;;
-    qa)       echo "colour208" ;;  reviewer)  echo "red"       ;;
-  esac
-}
-
-# Dynamic pane-id storage (bash 3.2 compatible — no associative arrays)
-pane_var() { echo "PANE_$(echo "$1" | tr '[:lower:]' '[:upper:]')"; }
-set_pane() { eval "$(pane_var "$1")=\"\$2\""; }
-get_pane() { eval "echo \"\${$(pane_var "$1"):-}\""; }
+# v2 pane = log viewer → label "<Role> log" (role_color มาจาก lib)
+log_label() { echo "$(role_label "$1") log"; }
 
 # ──────────────────────────────────────────────────────────────
 # Prepare /tmp/agent-logs/ — create dir and truncate each selected role's log
@@ -279,7 +246,7 @@ fi
 # 8. Set @role + @role_color per pane using stable IDs
 for _r in "${SELECTED_ROLES[@]}"; do
   _p=$(get_pane "$_r")
-  tmux set-option -p -t "$_p" @role "$(role_label "$_r")"
+  tmux set-option -p -t "$_p" @role "$(log_label "$_r")"
   tmux set-option -p -t "$_p" @role_color "$(role_color "$_r")"
 done
 
@@ -327,7 +294,7 @@ _RTK: ${rtk}_
 [Lead ต้อง set หลังอ่าน projects.json]
 
 ## Agents (v2 — on-demand, ไม่ใช่ standing panes)
-Lead spawn agent ผ่าน **Agent tool** ตาม task — ไม่ใช่ tmux paste
+Lead spawn agent ผ่าน **Agent tool** `subagent_type: "<role>"` ตาม task — ไม่ใช่ tmux paste
 Agents เขียน progress ลง \`${LOG_DIR}/<role>.log\` ; panes ด้านขวาคือ \`tail -f\` ของ log เหล่านั้น (ดูได้ ไม่ใช่ task targets)
 
 | Role | Log viewer pane | Log file |
@@ -365,7 +332,7 @@ inject_lead_context() {
 
   local pane_lines="" r
   for r in "${SELECTED_ROLES[@]}"; do
-    pane_lines="${pane_lines}  $(printf '%-13s' "$(role_label "$r")") → $(get_pane "$r")
+    pane_lines="${pane_lines}  $(printf '%-13s' "$(log_label "$r")") → $(get_pane "$r")
 "
   done
 
@@ -388,16 +355,13 @@ ${rtk_line}${pane_lines}${inactive_line}
 project: $PROJECT
 $paths_str
 
-[v2 multi-agent mode — agents spawned via Agent tool, logs at /tmp/agent-logs/]
+[v2 — spawn ด้วย Agent tool subagent_type "<role>" (เช่น "frontend"), name = role; log อยู่ที่ /tmp/agent-logs/<role>.log]
 รอรับ task จากผู้ใช้
 MSG
 )
 
   # Wait for Lead's Claude prompt before injecting (max 40s)
-  local i=0
-  while ! tmux capture-pane -t "$pane" -p 2>/dev/null | grep -qE "❯|bypass permissions"; do
-    sleep 1; i=$((i + 1)); [[ $i -gt 40 ]] && break
-  done
+  wait_for_claude_prompt "$pane" 40 || true
 
   tmux set-buffer "$msg" && tmux paste-buffer -t "$pane"
   tmux send-keys -t "$pane" Enter
@@ -418,7 +382,7 @@ echo ""
 echo "Pane mapping (stable %ID — numeric index เลื่อนได้เมื่อมี RTK pane):"
 echo "  Lead          → $SESSION:0.0  ($LEAD_PATH)"
 for _r in "${SELECTED_ROLES[@]}"; do
-  printf '  %-13s → %s  (%s/%s.log)\n' "$(role_label "$_r")" "$(get_pane "$_r")" "$LOG_DIR" "$_r"
+  printf '  %-13s → %s  (%s/%s.log)\n' "$(log_label "$_r")" "$(get_pane "$_r")" "$LOG_DIR" "$_r"
 done
 echo ""
 

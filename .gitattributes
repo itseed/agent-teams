@@ -1,0 +1,4 @@
+# Shell scripts must keep LF — CRLF (Git for Windows autocrlf) breaks them in WSL with "$'\r': command not found"
+*.sh   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf

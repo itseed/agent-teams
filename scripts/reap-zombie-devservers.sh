@@ -56,6 +56,25 @@ while IFS= read -r p; do
   [[ -n "$p" ]] && PATHS+=("$p")
 done < <(jq -r --arg p "$ACTIVE" '.projects[$p].paths // {} | to_entries[] | .value' "$PROJECTS_JSON" | sort -u)
 
+# proc_age_secs <pid> — elapsed seconds, portable: Linux ps has `etimes`, macOS/BSD ps only
+# has `etime` ([[dd-]hh:]mm:ss). Without the fallback every process reads as age "" and the
+# reaper silently never kills anything on macOS.
+proc_age_secs() {
+  local s et d=0 h=0 m=0 sec=0
+  s=$(ps -o etimes= -p "$1" 2>/dev/null | tr -d ' ')
+  if [[ "$s" =~ ^[0-9]+$ ]]; then echo "$s"; return; fi
+  et=$(ps -o etime= -p "$1" 2>/dev/null | tr -d ' ')
+  [[ -n "$et" ]] || return 0
+  if [[ "$et" == *-* ]]; then d=${et%%-*}; et=${et#*-}; fi
+  IFS=: read -r -a parts <<< "$et"
+  case ${#parts[@]} in
+    3) h=${parts[0]}; m=${parts[1]}; sec=${parts[2]} ;;
+    2) m=${parts[0]}; sec=${parts[1]} ;;
+    *) return 0 ;;
+  esac
+  echo $(( 10#$d * 86400 + 10#$h * 3600 + 10#$m * 60 + 10#$sec ))
+}
+
 KILLED=()
 
 for path in "${PATHS[@]:-}"; do
@@ -66,11 +85,11 @@ for path in "${PATHS[@]:-}"; do
     ppid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
     [[ "$ppid" == "1" ]] || continue
 
-    etimes=$(ps -o etimes= -p "$pid" 2>/dev/null | tr -d ' ')
+    etimes=$(proc_age_secs "$pid")
     [[ -n "$etimes" && "$etimes" -ge "$AGE_THRESHOLD_SECS" ]] || continue
 
     cwd=$(lsof -p "$pid" -a -d cwd -Fn 2>/dev/null | awk '/^n/{sub(/^n/,""); print; exit}')
-    [[ "$cwd" == "$path"* ]] || continue
+    [[ "$cwd" == "$path" || "$cwd" == "${path%/}/"* ]] || continue  # not /x/web-old for /x/web
 
     if kill -TERM "$pid" 2>/dev/null; then
       KILLED+=("$pid:$path")

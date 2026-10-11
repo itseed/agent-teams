@@ -11,6 +11,7 @@ PKG_MANAGER=""
 # shellcheck disable=SC2034  # forward-declared globals, used by functions added in later tasks
 TMUX_OK=false
 JQ_OK=false
+LSOF_OK=false
 CLAUDE_OK=false
 PROJECTS_OK=false
 SCRIPTS_OK=false
@@ -64,6 +65,14 @@ check_deps() {
     missing+=("jq")
   fi
 
+  # lsof: ใช้โดย hook cleanup/reap dev server — ไม่มี = hook เงียบไม่ทำอะไร (macOS มีมาให้, Ubuntu/WSL อาจไม่มี)
+  if command -v lsof >/dev/null 2>&1; then
+    echo "  ✓ lsof"
+    LSOF_OK=true
+  else
+    missing+=("lsof")
+  fi
+
   [[ ${#missing[@]} -eq 0 ]] && return 0
 
   echo "  ✗ Missing: ${missing[*]}"
@@ -90,6 +99,7 @@ check_deps() {
     if command -v "$pkg" >/dev/null 2>&1; then
       [[ "$pkg" == "tmux" ]] && TMUX_OK=true
       [[ "$pkg" == "jq" ]] && JQ_OK=true
+      [[ "$pkg" == "lsof" ]] && LSOF_OK=true
       echo "  ✓ $pkg installed"
     else
       echo "  ✗ $pkg install failed — install manually"
@@ -155,7 +165,10 @@ setup_projects() {
   echo ""
   echo "Making scripts executable..."
   local any_found=false
-  for script in start-team.sh start-team-v2.sh stop-team.sh scripts/team-send.sh scripts/log-pane.sh scripts/restore-pane-labels.sh scripts/team-state.sh scripts/add-role.sh; do
+  # scripts/lib/*.sh are sourced, not executed — not in this list
+  local script
+  for script in start-team.sh start-team-v2.sh stop-team.sh "$SCRIPT_DIR"/scripts/*.sh; do
+    script="${script#"$SCRIPT_DIR"/}"
     if [[ -f "$SCRIPT_DIR/$script" ]]; then
       chmod +x "$SCRIPT_DIR/$script"
       echo "  ✓ $script"
@@ -334,6 +347,7 @@ verify() {
   echo "────────────────────────────────"
   _s "$TMUX_OK"     "tmux"               "$(command -v tmux >/dev/null 2>&1 && tmux -V | awk '{print $2}' || true)"
   _s "$JQ_OK"       "jq"                 "$(command -v jq >/dev/null 2>&1 && jq --version | sed 's/^jq-//' || true)"
+  _s "$LSOF_OK"     "lsof (dev-server cleanup hooks)"
   _s "$CLAUDE_OK"   "claude CLI"
   _s "$PROJECTS_OK" "projects.json"
   _s "$SCRIPTS_OK"  "scripts executable"

@@ -23,20 +23,14 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 STATE_FILE="$SCRIPT_DIR/.team-state.md"
 PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 
-ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
-DEV_ROLES=(frontend backend mobile devops)
-SUPPORT_ROLES=(designer architect qa reviewer)
-
-# Model ตรงกับ start-team.sh: ทุก role = Opus 5.5, ต่างกันแค่ --effort (add-role.sh ไม่ spawn Lead)
-MODEL_OPUS="claude-opus-5-5"
-# claude_cmd <model> <effort> — effort ผ่าน `claude --effort <low|medium|high|xhigh|max>` (ยืนยันจาก claude --help v2.1.291)
-claude_cmd() { echo "claude --model $1 --effort $2 --dangerously-skip-permissions; read"; }
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"   # ALL_ROLES, role_*, provision_agent_dir, auto_trust (ตรงกับ start-team.sh)
 
 ROLE="${1:-}"
 PROJECT_ARG="${2:-}"
 
 [[ -n "$ROLE" ]] || { echo "Usage: $(basename "$0") <role> [project]" >&2; exit 1; }
-if [[ " ${ALL_ROLES[*]} " != *" $ROLE "* ]]; then
+if ! is_valid_role "$ROLE"; then
   echo "Error: unknown role '$ROLE' (valid: ${ALL_ROLES[*]})" >&2; exit 1
 fi
 
@@ -71,72 +65,7 @@ jq -e --arg p "$PROJECT" '.projects[$p]' "$PROJECTS_JSON" >/dev/null || {
 
 echo "→ Adding role '$ROLE' (project: $PROJECT)"
 
-# ──────────────────────────────────────────────────────────────
-# Per-role attributes (ให้ตรงกับ start-team.sh)
-# ──────────────────────────────────────────────────────────────
-role_label() {
-  case "$1" in
-    frontend) echo "Frontend" ;;  backend) echo "Backend" ;;
-    mobile)   echo "Mobile"   ;;  devops)  echo "DevOps"  ;;
-    designer) echo "Designer" ;;  architect) echo "Architect" ;;
-    qa)       echo "QA"       ;;  reviewer) echo "Reviewer" ;;
-  esac
-}
-role_color() {
-  case "$1" in
-    frontend) echo "cyan"      ;;  backend)   echo "blue"      ;;
-    mobile)   echo "magenta"   ;;  devops)    echo "green"     ;;
-    designer) echo "colour211" ;;  architect) echo "colour141" ;;
-    qa)       echo "colour208" ;;  reviewer)  echo "red"       ;;
-  esac
-}
-role_cmd() {
-  case "$1" in
-    architect|reviewer|qa) claude_cmd "$MODEL_OPUS" high ;;
-    designer)              claude_cmd "$MODEL_OPUS" low ;;
-    *)                     claude_cmd "$MODEL_OPUS" medium ;;  # frontend, backend, mobile, devops
-  esac
-}
-
-# ──────────────────────────────────────────────────────────────
-# Provision /tmp/agent-<role>/ + status file (เหมือน start-team.sh)
-# ──────────────────────────────────────────────────────────────
-provision_agent_dir() {
-  local dir="/tmp/agent-${ROLE}"
-  local src="$SCRIPT_DIR/.claude/agents/${ROLE}.md"
-  [[ -f "$src" ]] || { echo "Error: $src not found" >&2; exit 1; }
-
-  mkdir -p "$dir" "$dir/.claude" /tmp/agent-status
-  > "/tmp/agent-status/${ROLE}.md"
-
-  awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
-  echo '{"autoCompactEnabled":true}' > "$dir/.claude/settings.json"
-
-  local proj_description proj_paths_md
-  proj_description=$(jq -r --arg p "$PROJECT" '.projects[$p].description // ""' "$PROJECTS_JSON" 2>/dev/null || true)
-  proj_paths_md=$(jq -r --arg p "$PROJECT" \
-    '.projects[$p].paths | to_entries[] | "- **\(.key)**: \(.value)"' \
-    "$PROJECTS_JSON" 2>/dev/null || true)
-
-  cat >> "$dir/CLAUDE.md" <<CONTEXT
-
----
-
-## Active Project: $PROJECT
-${proj_description:+$proj_description$'\n'}
-### Project Paths
-$proj_paths_md
-
-### สิ่งที่ต้องทำเมื่อเริ่ม session ใหม่
-ก่อนรับงานแรก ให้อ่านไฟล์เหล่านี้ในแต่ละ path ที่เกี่ยวข้องกับ role ของคุณ:
-- \`CLAUDE.md\` — conventions, architecture, คำสั่ง dev ของ project
-- \`README.md\` — overview และ setup
-- \`DESIGN.md\` — design system, tokens, UX guidelines (ถ้ามี)
-
-หลังอ่านแล้วรอรับ task จาก Lead ได้เลย
-CONTEXT
-}
-provision_agent_dir
+provision_agent_dir "$ROLE" "$PROJECT" "$PROJECTS_JSON"
 
 # ──────────────────────────────────────────────────────────────
 # Find a sibling pane in the same column group to split from
@@ -176,29 +105,13 @@ tmux set-option -p -t "$NEW_PANE" @role "$(role_label "$ROLE")"
 tmux set-option -p -t "$NEW_PANE" @role_color "$(role_color "$ROLE")"
 
 # @workdir default จาก projects.json (frontend->web, backend->api, mobile->mobile; อื่นว่าง) — ใช้แสดง branch บน border
-case "$ROLE" in
-  frontend) _wd_key=web ;; backend) _wd_key=api ;; mobile) _wd_key=mobile ;; *) _wd_key="" ;;
-esac
-if [[ -n "$_wd_key" ]]; then
-  _wd=$(jq -r --arg p "$PROJECT" --arg k "$_wd_key" '.projects[$p].paths[$k] // ""' "$PROJECTS_JSON")
-  if [[ -n "$_wd" ]]; then tmux set-option -p -t "$NEW_PANE" @workdir "$_wd"; fi
-fi
+_wd=$(role_workdir "$ROLE" "$PROJECT" "$PROJECTS_JSON")
+if [[ -n "$_wd" ]]; then tmux set-option -p -t "$NEW_PANE" @workdir "$_wd"; fi
 
 # ──────────────────────────────────────────────────────────────
 # Auto-answer trust prompt (new /tmp dir → Claude asks once)
 # ──────────────────────────────────────────────────────────────
-auto_trust() {
-  local i=0
-  while [[ $i -lt 30 ]]; do
-    if tmux capture-pane -t "$NEW_PANE" -p 2>/dev/null | grep -q "trust this folder"; then
-      tmux send-keys -t "$NEW_PANE" "1" Enter
-      return
-    fi
-    sleep 0.5
-    i=$((i + 1))
-  done
-}
-auto_trust &
+auto_trust "$NEW_PANE" &
 
 # ──────────────────────────────────────────────────────────────
 # Append pane map to the new agent's CLAUDE.md (Lead + ทีมปัจจุบันจาก state)
@@ -249,6 +162,20 @@ register_in_state() {
         if (i == last_row) print row
       }
     }
+  ' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
+
+  # เอา role นี้ออกจากบรรทัด "Role ที่ไม่ได้ spawn: ..." (ถ้าว่างแล้ว ลบทั้งบรรทัด)
+  tmp=$(mktemp)
+  awk -v role="$ROLE" '
+    /^Role ที่ไม่ได้ spawn: / {
+      split($0, parts, " — "); head = parts[1]; rest = substr($0, length(head) + 1)
+      sub(/^Role ที่ไม่ได้ spawn: /, "", head)
+      n = split(head, rs, " "); out = ""
+      for (i = 1; i <= n; i++) if (rs[i] != role) out = out (out == "" ? "" : " ") rs[i]
+      if (out == "") next
+      print "Role ที่ไม่ได้ spawn: " out rest; next
+    }
+    { print }
   ' "$STATE_FILE" > "$tmp" && mv "$tmp" "$STATE_FILE"
 
   # อัปเดต timestamp

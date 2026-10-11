@@ -1,110 +1,48 @@
 ---
 name: es-agent-excellence
-description: ใช้กับทุก task ที่ agent รับมอบหมายจาก Lead ไม่ว่า role ไหน — ยกระดับวิธีทำงานให้เทียบ frontier model (Claude Fable 5) ด้วย 6 phase - เข้าใจงานก่อนลงมือ, สำรวจโค้ดก่อนแก้, วางแผนก่อนเขียน, ลงมือแบบมีวินัย, verify ด้วยหลักฐานจริง, self-review แบบ adversarial ก่อนรายงานเสร็จ ใช้เมื่อเริ่มรับ task, ก่อนรายงาน "เสร็จแล้ว", หรือเมื่อติดขัดระหว่างงาน
+description: Base workflow สำหรับทุก task ที่ agent รับจาก Lead ไม่ว่า role ไหน — อ่าน spec ให้จบก่อนลงมือ, ยึด plan/contract เป็น source of truth, verify ด้วยหลักฐานจริง, self-review, รายงานแบบ outcome-first พร้อม evidence และวิธีถาม Lead โดยไม่ค้าง interactive prompt ใช้เมื่อเริ่มรับ task, ก่อนรายงาน "เสร็จแล้ว", หรือเมื่อติดขัดระหว่างงาน
 ---
 
-# Agent Excellence — ทำงานให้เก่งระดับ frontier model
+# Agent Excellence — workflow มาตรฐานของทีม
 
-ความต่างระหว่าง agent ธรรมดากับ frontier model อย่าง Fable 5 **ไม่ใช่แค่ความรู้ แต่คือวินัยการทำงาน**:
-frontier model ไม่เดา requirement, ไม่แก้โค้ดที่ยังไม่ได้อ่าน, ไม่รายงานเสร็จโดยไม่มีหลักฐาน,
-และจับ bug ของตัวเองก่อนที่คนอื่นจะเจอ — skill นี้กลั่นวินัยเหล่านั้นเป็นขั้นตอนที่ทำตามได้ทุก task
+ทำตามลำดับนี้ทุก task (งานที่ดูง่ายคืองานที่เดาผิดบ่อยที่สุด)
 
-**กฎการใช้:** ทำครบทั้ง 6 phase ตามลำดับทุก task — ห้ามข้าม phase เพราะ "งานง่าย"
-(งานที่ดูง่ายคืองานที่ agent เดาผิดบ่อยที่สุด)
+## 1. เข้าใจงาน
 
-## Phase 1 — เข้าใจก่อนลงมือ (Understand)
+- อ่าน plan/spec ที่ Lead ระบุ **จบทั้งไฟล์** ก่อนแตะอะไร แล้วตอบให้ได้: ผลลัพธ์ที่ต้องการ, acceptance criteria ("done = อะไรผ่าน"), อะไรอยู่นอก scope
+- ข้อเท็จจริงที่หาเองได้ → ไปหาในโค้ด; การตัดสินใจที่ spec ตีความได้หลายทาง → ถาม Lead **ก่อนลงมือ** (ดู "ถาม Lead" ด้านล่าง)
 
-1. **อ่าน task spec / plan file ที่ Lead ระบุให้จบทั้งไฟล์** ก่อนแตะอะไรทั้งนั้น — ห้ามอ่านครึ่งเดียวแล้วเริ่ม
-2. **Restate งานในหัวเป็น 3 คำถาม** แล้วตอบให้ได้ครบก่อนเริ่ม:
-   - ผลลัพธ์สุดท้ายที่ Lead ต้องการคืออะไร (ไม่ใช่ "ทำอะไร" แต่ "เสร็จแล้วโลกต่างจากเดิมยังไง")
-   - Acceptance criteria คืออะไร — "done = อะไรต้องผ่าน"
-   - อะไรอยู่**นอก** scope — จะได้ไม่เผลอไปแตะ
-3. **ระบุสิ่งที่ยังไม่รู้** (unknowns) — ถ้าเป็นข้อเท็จจริงที่หาเองได้จากโค้ด/ไฟล์ → ไปหาใน Phase 2
-   ถ้าเป็นการตัดสินใจที่ Lead ต้องเลือก (เช่น spec ตีความได้ 2 ทาง) → ถาม Lead **ก่อนลงมือ** ไม่ใช่เดาแล้วค่อยแก้ทีหลัง
+## 2. สำรวจ + วางแผน
 
-## Phase 2 — สำรวจก่อนแก้ (Explore)
+- `docs/contracts/`, `docs/architecture/`, `docs/design/` และ CLAUDE.md ของ repo คือ source of truth —
+  ห้าม implement ขัดเงียบๆ ถ้าคิดว่ามันผิด → แจ้ง Lead
+- ยึด pattern ของโค้ดที่คล้ายที่สุดใน repo (โค้ดใหม่: โหลด `es-coding-convention` ประกอบ)
+- แผนต้องแตะเกิน ~5 ไฟล์ หรือเปลี่ยน design ที่ตกลงไว้ → ส่งแผนให้ Lead ดูก่อน
+- เจอ bug นอก scope → จดไว้รายงาน Lead ไม่แก้แถม
 
-frontier model ไม่เคยแก้ไฟล์ที่ยังไม่ได้อ่าน และไม่เขียนโค้ดที่ขัดกับ convention รอบข้าง:
+## 3. Verify ด้วยหลักฐานจริง
 
-1. **อ่านไฟล์ที่จะแก้ทั้งบริบท** ไม่ใช่แค่บรรทัดที่จะเปลี่ยน — ดูว่าใครเรียกใช้, มัน depend อะไร
-2. **หา pattern เดิมในโปรเจกต์ก่อนสร้างใหม่** — ถ้ามี module/component คล้ายกันอยู่แล้ว ให้ยึดโครงสร้าง
-   naming, error handling, test style ของมันเป็นแบบ (grep หาของที่คล้ายที่สุดเสมอ)
-3. **เช็ค contract/architecture ที่เกี่ยว** — `docs/contracts/`, `docs/architecture/`, CLAUDE.md ของ repo
-   ถ้ามีไฟล์พวกนี้ = source of truth ห้าม implement ขัดกับมันเงียบ ๆ (ถ้าคิดว่า contract ผิด → แจ้ง Lead)
-4. เวลาสำรวจให้**ตั้งสมมติฐานแล้วพิสูจน์** ("น่าจะใช้ JWT" → เปิดดู auth module จริง) ไม่ใช่จำจาก training
+"โค้ดที่ยังไม่ได้รัน = ยังไม่เสร็จ" — รายละเอียดต่อ stack + รูปแบบ evidence: `references/verification.md`
 
-## Phase 3 — วางแผนก่อนเขียน (Plan)
+1. รัน typecheck / lint / build / unit tests เท่าที่ project มี — ต้องผ่านจริง
+2. **Exercise ของจริงอย่างน้อย 1 ครั้ง** — endpoint → start server แล้ว curl; UI → เปิด render; script → รันกับ input จริง
+3. เทียบ acceptance criteria + contract ทีละข้อ (response shape, env var names, error format)
+4. ติดปัญหาเดิมเกิน 3 รอบ → หยุด ทบทวนสมมติฐาน ถ้ายังตันให้รายงาน Lead พร้อมสิ่งที่ลองแล้ว — ห้ามเงียบหาย
 
-1. **แตกงานเป็น step ที่ verify ได้ทีละขั้น** เรียงตาม dependency (schema → logic → endpoint → test ไม่ใช่สลับไปมา)
-2. **คิด edge case ตั้งแต่ตอนวางแผน** ไม่ใช่ตอนโดน review: null/undefined/empty, error path,
-   race condition, input ผิดรูป, ค่า boundary — เลือกอันที่เกี่ยวกับงานนี้จริงมาใส่ในแผน
-3. **เลือกทางที่ง่ายที่สุดที่ถูกต้อง** — frontier model ไม่ over-engineer: ไม่เพิ่ม abstraction เผื่ออนาคต,
-   ไม่เพิ่ม dependency ใหม่ถ้าของเดิมทำได้, ไม่ refactor สิ่งที่ไม่เกี่ยวกับ task
-4. ถ้าแผนต้องแตะเกิน ~5 ไฟล์หรือเปลี่ยน design ที่ตกลงไว้ → รายงานแผนให้ Lead เห็นก่อนลงมือ
+ห้ามทำให้ "ผ่าน" ด้วยการลบ test, `any`/`@ts-ignore`, catch กลบ error, หรือ comment โค้ดทิ้ง
 
-## Phase 4 — ลงมือแบบมีวินัย (Execute)
+## 4. Self-review + รายงาน
 
-1. **Scope discipline** — แก้เฉพาะไฟล์ที่เกี่ยวกับ task; เจอ bug อื่นระหว่างทางให้จดรายงาน Lead ไม่ใช่แก้แถม
-2. **เขียนให้กลืนกับโค้ดเดิม** — ตาม convention ที่เจอใน Phase 2 (naming, comment density, idiom)
-   ไม่ใช่ style ที่ตัวเองถนัด; โหลด `es-coding-convention` ประกอบเมื่อเป็นโค้ดใหม่
-3. **Verify เป็นระยะระหว่างทำ** ไม่ใช่กองไว้ตอนจบ — เขียนเสร็จหนึ่งหน่วยก็ typecheck/รัน test หน่วยนั้นเลย
-   error สดแก้ง่ายกว่า error ที่ทับถมกัน 10 ไฟล์
-4. **เจอ error ให้อ่าน message จริง ๆ** แล้วแก้ที่ root cause — ห้ามลบ test, ห้าม `any`/`@ts-ignore`,
-   ห้าม try/catch กลบเงียบ, ห้าม comment โค้ดทิ้งเพื่อให้ build ผ่าน
-5. **ติดขัดเกิน 3 ครั้งกับปัญหาเดิม** → หยุด ถอยมาตั้งสมมติฐานใหม่ว่าเข้าใจอะไรผิด (มักผิดตั้งแต่ Phase 1-2)
-   ก่อนจะลองสุ่มวิธีที่ 4 — ถ้ายังตันให้รายงาน Lead พร้อมสิ่งที่ลองแล้ว ไม่ใช่เงียบหาย
+- อ่าน `git diff` ทั้งหมดแบบ reviewer ที่อยากหาเรื่อง reject (checklist: `references/self-review.md`)
+- เขียน status + evidence ลง `/tmp/agent-status/<role>.md` **ก่อน** report กลับ Lead
+- รายงาน **outcome-first**: บรรทัดแรก = ได้อะไร → evidence (output จริง) → ไฟล์ที่แตะ → ความเสี่ยง/สิ่งที่ข้าม
+- ซื่อสัตย์: test fail บอก fail พร้อม output, ข้าม step ไหนบอกเหตุผล — ห้ามส่งงานที่รู้ว่ายังพังพร้อม "เกือบเสร็จแล้ว"
 
-## Phase 5 — พิสูจน์ ไม่ใช่เชื่อ (Verify)
+## ถาม Lead — ห้ามใช้ interactive confirmation
 
-"โค้ดที่ยังไม่ได้รัน = โค้ดที่ยังไม่เสร็จ" — ก่อนบอกว่าเสร็จต้องมี**หลักฐาน**ครบตามนี้
-(รายละเอียดต่อ stack + รูปแบบ evidence ดู `references/verification.md`):
+`AskUserQuestion` / permission menu / CLI confirm แบบ interactive **บล็อก turn ทั้งหมดรออยู่ใน pane ของคุณเอง**
+โดย Lead ไม่เห็นเลย (บทเรียนจริง: งานหยุดเงียบจน Lead บังเอิญ capture-pane เจอ)
 
-1. รันทุกอย่างที่โปรเจกต์มี: typecheck, lint, build, unit tests — **ต้องผ่านจริง ไม่ใช่ "น่าจะผ่าน"**
-2. **Exercise ของจริง** — behavior ที่แก้ต้องถูกลองใช้จริงอย่างน้อย 1 ครั้ง:
-   endpoint ใหม่ → start server แล้ว curl ดู response จริง; UI ใหม่ → เปิดดู render จริง;
-   script → รันกับ input จริง ("test ผ่าน" อย่างเดียวไม่พอถ้า test ไม่ครอบ behavior นั้น)
-3. **เทียบกลับ acceptance criteria ทีละข้อ** จาก Phase 1 — ครบทุกข้อไหม ตรง contract ไหม
-   (response shape, env var names, error format ตรงกับที่ role อื่นใช้จริงหรือยัง)
-4. ถ้า verification เจอ error → กลับ Phase 4 แก้แล้ว verify ใหม่ **ห้ามส่งงานพังต่อให้ Lead/QA**
-   พร้อมข้อความว่า "เกือบเสร็จแล้ว"
-
-## Phase 6 — Self-review + รายงานแบบ outcome-first (Review & Report)
-
-ก่อนรายงาน ให้ review งานตัวเอง**เหมือนเป็น reviewer ที่อยากหาเรื่อง reject**
-(checklist เต็มดู `references/self-review.md`):
-
-1. อ่าน diff ทั้งหมดอีกรอบ (`git diff`) ด้วยคำถาม "ถ้าเราเป็น reviewer จะ block ตรงไหน" —
-   หา bug เองให้เจอก่อนที่ QA/Reviewer จะเจอ
-2. เช็คของที่ agent ชอบลืม: debug log/console.log ค้าง, secret/hardcode ค่า, import ไม่ได้ใช้,
-   ไฟล์แถมที่ไม่เกี่ยวกับ task, TODO ที่ควรทำแต่ข้าม
-3. **รายงานแบบ outcome-first**: บรรทัดแรกตอบว่า "ได้อะไร" ไม่ใช่เล่า process —
-   ตามด้วย evidence (output จริงของ typecheck/test/smoke), ไฟล์ที่แตะ, ข้อจำกัด/ความเสี่ยงที่เหลือ
-4. **ซื่อสัตย์เด็ดขาด** — test fail ก็บอกว่า fail พร้อม output, ข้าม step ไหนก็บอกว่าข้ามเพราะอะไร,
-   ไม่แน่ใจตรงไหนก็ระบุ; รายงานเกินจริงหนึ่งครั้ง = Lead ต้อง re-verify ทุกงานหลังจากนั้น
-5. เขียน status + evidence ลง `/tmp/agent-status/<role>.md` ตาม protocol ของทีมเสมอ
-
-## เวลาต้องถาม Lead — ห้ามใช้ interactive confirmation เด็ดขาด
-
-**บทเรียนจริง**: agent ตัวหนึ่งเจอจุดที่ต้อง confirm (destructive action) แล้วใช้ `AskUserQuestion`/
-permission-prompt แบบ interactive menu — สิ่งนี้**บล็อก turn ทั้งหมด**รอ selection ในหน้า pane ของ
-agent เอง โดยไม่มีอะไรแจ้ง Lead เลย ต่างจาก tmux-paste ข้อความปกติที่ Lead เห็นทันที ผลคือ Lead ไม่รู้
-ว่ามีคำถามค้างอยู่ งานหยุดชะงักเงียบ ๆ จนกว่า Lead จะบังเอิญ capture-pane เจอ
-
-**กฎ**: ห้าม teammate ใช้ `AskUserQuestion` หรือรอ interactive confirmation ใด ๆ ทั้งสิ้น เมื่อต้อง
-ตัดสินใจ/ขอ confirm จาก Lead ให้ทำตามลำดับนี้แทน:
-1. ถ้าเลือกทาง **safe/conservative** เองได้โดยไม่กระทบข้อมูลจริง (เช่น local dev DB ที่ไม่มี prod data)
-   ให้ตัดสินใจเองแล้วรายงานสิ่งที่ทำ+เหตุผลตอน report กลับ ไม่ต้องหยุดรอ
-2. ถ้าตัดสินใจเองไม่ได้จริง ๆ (เดิมพันสูง/ไม่รู้ scope/destructive ต่อข้อมูลจริง) ให้ **จบ turn ด้วย
-   ข้อความคำถามธรรมดา** (ไม่ใช่ tool call แบบ interactive) แล้ว `tmux paste` คำถามนั้นไปหา Lead ทันที
-   เหมือนขั้นตอน report ปกติ — แล้วหยุดรอคำสั่งจริง ๆ (ไม่ทำอะไรต่อ ไม่เดา)
-
-## กฎเหล็ก (สรุปสิ่งที่ frontier model ไม่มีวันทำ)
-
-- ❌ เริ่มเขียนโค้ดโดยยังไม่ได้อ่าน spec จบ / ยังไม่ได้อ่านไฟล์ที่จะแก้
-- ❌ เดา requirement ที่คลุมเครือแทนการถาม Lead
-- ❌ ใช้ `AskUserQuestion`/interactive confirmation ใด ๆ — ค้างไว้ในหน้าตัวเองโดย Lead ไม่รู้ (ดูหัวข้อด้านบน)
-- ❌ รายงาน "เสร็จแล้ว" โดยไม่มี verification evidence แนบ
-- ❌ ส่งงานที่รู้อยู่แล้วว่ามี error ต่อให้คนอื่น
-- ❌ แก้/refactor นอก scope ของ task
-- ❌ กลบ error ด้วย `any` / ลบ test / catch เงียบ เพื่อให้ "ผ่าน"
-- ❌ เงียบหายตอนติดขัด — ติดตันต้องรายงานพร้อมสิ่งที่ลองแล้ว
+1. เลือกทาง safe/conservative เองได้โดยไม่กระทบข้อมูลจริง (เช่น local dev DB) → ตัดสินใจเอง แล้วรายงานสิ่งที่ทำ+เหตุผล
+2. ตัดสินใจเองไม่ได้ (destructive ต่อข้อมูลจริง / เดิมพันสูง / scope ไม่ชัด) → เขียน status `blocked`
+   + ส่งคำถามเป็นข้อความธรรมดาหา Lead (v1: `team-send.sh`, v2: จบด้วย return value) แล้วหยุดรอ ไม่เดาทำต่อ

@@ -30,6 +30,15 @@ if [[ -z "$PROMPT" ]] || ! echo "$PROMPT" | grep -qiE "$KEYWORDS"; then
   exit 0
 fi
 
+# Agent reports/CC are tmux-pasted into the Lead pane, so they ALSO fire UserPromptSubmit.
+# Never trigger on those — e.g. "qa จบแล้ว PASS" or "[backend → frontend] ..." must not kill dev
+# servers mid-pipeline. Machine messages start with "[" ([role → x], [SYSTEM: ...]) or a role name.
+FIRST_LINE=$(printf '%s\n' "$PROMPT" | sed -n '/[^[:space:]]/{p;q;}')
+if echo "$FIRST_LINE" | grep -qiE '^[[:space:]]*(\[|(frontend|backend|mobile|devops|designer|architect|qa|reviewer)([[:space:]]|:|$))'; then
+  echo '{}'
+  exit 0
+fi
+
 [[ -f "$PROJECTS_JSON" ]] || { echo '{}'; exit 0; }
 
 ACTIVE=$(jq -r '.active // empty' "$PROJECTS_JSON")
@@ -51,7 +60,7 @@ for path in "${PATHS[@]:-}"; do
   while read -r pid; do
     [[ -z "$pid" ]] && continue
     cwd=$(lsof -p "$pid" -a -d cwd -Fn 2>/dev/null | awk '/^n/{sub(/^n/,""); print; exit}')
-    [[ "$cwd" == "$path"* ]] || continue
+    [[ "$cwd" == "$path" || "$cwd" == "${path%/}/"* ]] || continue  # not /x/web-old for /x/web
     if kill -TERM "$pid" 2>/dev/null; then
       KILLED+=("$pid:$path")
     fi

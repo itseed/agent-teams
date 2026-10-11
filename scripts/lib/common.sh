@@ -1,0 +1,187 @@
+# scripts/lib/common.sh — shared helpers for start-team*.sh / add-role.sh / restore-*.sh
+#
+# Source it (don't execute):  source "<agent-teams>/scripts/lib/common.sh"
+# Single source of truth for role list, labels, colors, model/effort, and per-agent dir
+# provisioning — แก้ที่นี่ที่เดียว ไม่ต้องไล่แก้หลายสคริปต์
+# bash 3.2 compatible (macOS default) — no associative arrays
+
+AGENT_TEAMS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
+
+ALL_ROLES=(frontend backend mobile devops designer architect qa reviewer)
+DEV_ROLES=(frontend backend mobile devops)        # คอลัมน์กลาง
+SUPPORT_ROLES=(designer architect qa reviewer)    # คอลัมน์ขวา
+
+is_valid_role() { [[ " ${ALL_ROLES[*]} " == *" $1 "* ]]; }
+
+# Model pinned explicitly (ไม่ขึ้นกับ default ของเครื่อง): Opus 5.5 ทุก role + Lead
+# ความต่างระหว่าง role อยู่ที่ --effort อย่างเดียว
+MODEL_OPUS="claude-opus-5-5"
+
+# claude_cmd <model> <effort>
+claude_cmd() { echo "claude --model $1 --effort $2 --dangerously-skip-permissions; read"; }
+
+# high = architect/reviewer/qa · medium = frontend/backend/mobile/devops · low = designer
+role_effort() {
+  case "$1" in
+    architect|reviewer|qa) echo high ;;
+    designer)              echo low ;;
+    *)                     echo medium ;;
+  esac
+}
+role_cmd() { claude_cmd "$MODEL_OPUS" "$(role_effort "$1")"; }
+
+role_label() {
+  case "$1" in
+    frontend) echo "Frontend" ;;  backend)   echo "Backend"   ;;
+    mobile)   echo "Mobile"   ;;  devops)    echo "DevOps"    ;;
+    designer) echo "Designer" ;;  architect) echo "Architect" ;;
+    qa)       echo "QA"       ;;  reviewer)  echo "Reviewer"  ;;
+  esac
+}
+role_color() {
+  case "$1" in
+    frontend) echo "cyan"      ;;  backend)   echo "blue"      ;;
+    mobile)   echo "magenta"   ;;  devops)    echo "green"     ;;
+    designer) echo "colour211" ;;  architect) echo "colour141" ;;
+    qa)       echo "colour208" ;;  reviewer)  echo "red"       ;;
+  esac
+}
+
+# Dynamic pane-id storage
+pane_var() { echo "PANE_$(echo "$1" | tr '[:lower:]' '[:upper:]')"; }
+set_pane() { eval "$(pane_var "$1")=\"\$2\""; }
+get_pane() { eval "echo \"\${$(pane_var "$1"):-}\""; }
+
+# role_workdir <role> <project> <projects.json> — repo default ของ role (ใช้แสดง branch บน border)
+role_workdir() {
+  local key
+  case "$1" in
+    frontend) key=web ;; backend) key=api ;; mobile) key=mobile ;; *) return 0 ;;
+  esac
+  jq -r --arg p "$2" --arg k "$key" '.projects[$p].paths[$k] // ""' "$3"
+}
+
+# windows_guard <script-name> — must run inside WSL2, not CMD/PowerShell
+windows_guard() {
+  if [[ "${OS:-}" == "Windows_NT" ]] || \
+     { [[ -f /proc/version ]] && grep -qi "microsoft" /proc/version && [[ -z "${WSL_DISTRO_NAME:-}" ]]; }; then
+    cat >&2 <<EOF
+Error: $1 ต้องรันใน WSL2 เท่านั้น ไม่รองรับ Windows CMD/PowerShell โดยตรง
+
+วิธีแก้:
+  1. ติดตั้ง WSL2 ด้วย setup-windows.ps1 (PowerShell as Administrator):
+       .\\setup-windows.ps1
+  2. เปิด Ubuntu terminal แล้วไปที่ repo:
+       cd ~/agent-teams
+  3. รันใหม่:
+       ./$1
+EOF
+    exit 1
+  fi
+}
+
+# provision_agent_dir <role> <project> <projects.json>
+# สร้าง /tmp/agent-<role>/CLAUDE.md (role .md ไม่มี frontmatter + team protocol + project context)
+# Agents start here so Claude reads the specialist role before any task arrives.
+provision_agent_dir() {
+  local role="$1" project="$2" projects_json="$3"
+  local dir="/tmp/agent-${role}"
+  local src="$AGENT_TEAMS_DIR/.claude/agents/${role}.md"
+  local protocol="$AGENT_TEAMS_DIR/templates/agent-protocol.md"
+  [[ -f "$src" ]] || { echo "Error: $src not found" >&2; return 1; }
+
+  mkdir -p "$dir/.claude" /tmp/agent-status
+  : > "/tmp/agent-status/${role}.md"
+
+  # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
+  awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
+
+  # Shared team protocol (ack / status file / report-back / peer messages) — ROLE + TEAM_SEND substituted
+  if [[ -f "$protocol" ]]; then
+    printf '\n---\n\n' >> "$dir/CLAUDE.md"
+    sed -e "s|{{ROLE}}|${role}|g" -e "s|{{TEAM_SEND}}|${AGENT_TEAMS_DIR}/scripts/team-send.sh|g" \
+      "$protocol" >> "$dir/CLAUDE.md"
+  fi
+
+  # auto-compact so agents don't hang at 100% context; disable Remote Control so only Lead
+  # registers as an RC session (teammates run from /tmp/agent-<role>, not the repo root)
+  echo '{"autoCompactEnabled":true,"disableRemoteControl":true}' > "$dir/.claude/settings.json"
+
+  local proj_description proj_paths_md
+  proj_description=$(jq -r --arg p "$project" '.projects[$p].description // ""' "$projects_json" 2>/dev/null || true)
+  proj_paths_md=$(jq -r --arg p "$project" \
+    '.projects[$p].paths | to_entries[] | "- **\(.key)**: \(.value)"' \
+    "$projects_json" 2>/dev/null || true)
+
+  cat >> "$dir/CLAUDE.md" <<CONTEXT
+
+---
+
+## Active Project: $project
+${proj_description:+$proj_description$'\n'}
+### Project Paths
+$proj_paths_md
+
+### สิ่งที่ต้องทำเมื่อเริ่ม session ใหม่
+ก่อนรับงานแรก ให้อ่านไฟล์เหล่านี้ในแต่ละ path ที่เกี่ยวข้องกับ role ของคุณ:
+- \`CLAUDE.md\` — conventions, architecture, คำสั่ง dev ของ project
+- \`README.md\` — overview และ setup
+- \`DESIGN.md\` — design system, tokens, UX guidelines (ถ้ามี)
+
+หลังอ่านแล้วรอรับ task จาก Lead ได้เลย
+CONTEXT
+}
+
+# capture-pane -J joins wrapped lines (narrow pane wraps "trust this folder"); -S -50 includes lines
+# pushed into scrollback when a later split shrinks the pane
+# auto_trust <pane> — answer Claude's one-time "trust this folder" prompt (run in background)
+auto_trust() {
+  local pane="$1" i=0
+  while [[ $i -lt 30 ]]; do
+    if tmux capture-pane -J -S -50 -t "$pane" -p 2>/dev/null | grep -q "trust this folder"; then
+      tmux send-keys -t "$pane" "1" Enter
+      return 0
+    fi
+    sleep 0.5
+    i=$((i + 1))   # NOT ((i++)) — returns 1 when i=0 and kills the loop under set -e
+  done
+}
+
+# wait_for_claude_prompt <pane> [max_secs] — block until Claude's input prompt is visible
+wait_for_claude_prompt() {
+  local pane="$1" max="${2:-40}" i=0
+  while ! tmux capture-pane -J -t "$pane" -p 2>/dev/null | grep -qE "❯|bypass permissions"; do
+    sleep 1
+    i=$((i + 1))
+    [[ $i -gt $max ]] && return 1
+  done
+  return 0
+}
+
+# resolve_session — --session override ($SESSION_OVERRIDE) > tmux reality (v1/v2) > .team-state.md Mode
+# ใช้กับ restore-*.sh (stop-team.sh มี variant แบบ interactive ของตัวเอง)
+resolve_session() {
+  if [[ -n "${SESSION_OVERRIDE:-}" ]]; then
+    echo "$SESSION_OVERRIDE"
+    return 0
+  fi
+
+  local v1_up=0 v2_up=0
+  tmux has-session -t dev-team    2>/dev/null && v1_up=1
+  tmux has-session -t dev-team-v2 2>/dev/null && v2_up=1
+
+  if [[ "$v1_up" -eq 1 && "$v2_up" -eq 1 ]]; then
+    echo "Error: ทั้ง 'dev-team' (v1) และ 'dev-team-v2' (v2) กำลังรันอยู่พร้อมกัน — ระบุ session ที่ต้องการด้วย --session dev-team หรือ --session dev-team-v2" >&2
+    exit 1
+  elif [[ "$v1_up" -eq 1 ]]; then
+    echo "dev-team"; return 0
+  elif [[ "$v2_up" -eq 1 ]]; then
+    echo "dev-team-v2"; return 0
+  fi
+
+  if [[ -f "$AGENT_TEAMS_DIR/.team-state.md" ]] && grep -q "_Mode: v2" "$AGENT_TEAMS_DIR/.team-state.md"; then
+    echo "dev-team-v2"
+  else
+    echo "dev-team"
+  fi
+}
