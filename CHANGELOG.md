@@ -2,6 +2,10 @@
 
 ### 2026-10-11
 
+**Windows (WSL2)** — เพิ่ม `.gitattributes` บังคับ LF ให้ `*.sh`/`*.json`/`*.md` (กัน `$'\r': command not found`);
+`install.sh` เช็ค/ติดตั้ง `lsof` (hook cleanup/reap dev server ใช้ — ไม่มีแล้ว hook เงียบ); README แนะนำวาง project
+ใน filesystem ของ WSL ไม่ใช่ `/mnt/c`
+
 **v2 ใช้ subagent ที่ลงทะเบียนแล้ว** — `.claude/agents/<role>.md` มี `name:` แล้ว Lead จึง spawn ด้วย
 `subagent_type: "<role>"` ได้ตรงๆ: role .md เป็น system prompt, `model:` ใน frontmatter ถูกใช้อัตโนมัติ —
 ตัด workaround เดิม (general-purpose + inject role + ส่ง model เอง) ออก, เหลือเป็น fallback เท่านั้น

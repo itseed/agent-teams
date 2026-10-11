@@ -319,8 +319,8 @@ nano projects.json
 }
 ```
 
-> **เข้าถึงไฟล์ Windows จาก WSL2:** ไดรฟ์ Windows อยู่ที่ `/mnt/c/`, `/mnt/d/` ฯลฯ  
-> เช่น `C:\Users\you\projects\myapp` → `/mnt/c/Users/you/projects/myapp`
+> **แนะนำให้ย้าย project เข้า WSL** (`~/projects/...`) — ดู [วาง project ไว้ใน filesystem ของ WSL](#วาง-project-ไว้ใน-filesystem-ของ-wsl-สำคัญ)
+> ถ้าจำเป็นต้องใช้ project บนไดรฟ์ Windows จริงๆ: `C:\Users\you\projects\myapp` → `/mnt/c/Users/you/projects/myapp` (ช้า + hot reload อาจไม่ทำงาน)
 
 **ขั้นที่ 4 — Start session**
 
@@ -337,6 +337,15 @@ cd ~/agent-teams
 ./start-team.sh        # เริ่ม session
 ./stop-team.sh         # หยุด session
 ```
+
+### วาง project ไว้ใน filesystem ของ WSL (สำคัญ)
+
+- เก็บ project ที่ `~/projects/...` (ฝั่ง Linux) **ไม่ใช่** `/mnt/c/...` — บน `/mnt/c` build/install ช้ามาก
+  และ hot reload ของ dev server มักไม่ทำงาน (การแก้ไฟล์ข้าม filesystem ไม่ส่ง file-watch event)
+- `projects.json` ใช้ path แบบ Linux เช่น `/home/<user>/projects/myapp/web` — ห้ามใช้ `C:\...`
+- แก้ไฟล์จาก Windows ได้ผ่าน VS Code + WSL extension (`code .` ใน Ubuntu) หรือ `\\wsl$\Ubuntu\home\<user>`
+- clone repo นี้ **ใน Ubuntu** (`setup-windows.ps1` ทำให้แล้ว) — `.gitattributes` บังคับ LF ให้ `*.sh` แต่ถ้า clone
+  ฝั่ง Windows ด้วย Git for Windows แล้วเรียกผ่าน `/mnt/c` ยังเสี่ยงเจอ path/permission ปัญหาอื่น
 
 ### ข้อจำกัด Beta
 
