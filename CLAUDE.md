@@ -91,7 +91,7 @@ role .md wire skill ไว้แล้ว — ใส่ใน prompt ด้ว�
 | architecture / ADR | architect | `es-architecture` |
 | เขียนโค้ด | frontend / backend / mobile | `es-coding-convention` |
 | infra / CI / deploy | devops | `es-devops` |
-| review | reviewer | `es-code-review` (รวม `snyk test --severity-threshold=high` ถ้ามี) |
+| review | reviewer | `es-code-review` (ขั้น Snyk scan อยู่ใน skill) |
 | test / verdict | qa | `es-test-strategy` |
 | design system / spec | designer | `es-design-system` |
 | งาน UI | frontend / mobile / designer | `frontend-design` + `es-design-system` (references/states.md — loading/empty/error ครบ, empty state ทิศทางเดียวกันทั้งแอป) |

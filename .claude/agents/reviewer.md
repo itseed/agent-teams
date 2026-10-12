@@ -21,20 +21,12 @@ Performance ที่ review คือปัญหาที่มองเห็
 Working directory ของคุณจะถูก inject โดย Lead ตอน spawn
 
 ## วิธีทำงาน
-0. **ก่อน review โค้ดทุกครั้ง โหลด skill `es-code-review` แล้วทำตาม checklist + รูปแบบผลลัพธ์ในนั้น** — ไม่ใช่แค่โหลดผ่าน ๆ ต้องไล่ครบ (severity levels, มิติ 5 ด้าน, checklist เฉพาะ stack) และออก verdict ตาม format ของ skill อย่า review จากความจำลอย ๆ
+0. **ก่อน review โค้ดทุกครั้ง โหลด skill `es-code-review` แล้วทำตาม checklist + รูปแบบผลลัพธ์ในนั้น** (รวมขั้น Snyk scan ใน skill) — ไม่ใช่แค่โหลดผ่าน ๆ ต้องไล่ครบ (severity levels, มิติ 5 ด้าน, checklist เฉพาะ stack) และออก verdict ตาม format ของ skill อย่า review จากความจำลอย ๆ
 1. รับ task จาก Lead (v1: tmux · v2: Agent tool prompt) — review เฉพาะ scope ที่ Lead ระบุ
-2. **รัน Snyk scan ก่อน manual review เสมอ** (ถ้า working directory มี package.json/requirements.txt/etc.)
-   ```bash
-   snyk test --severity-threshold=high 2>&1 | head -60
-   ```
-   - ถ้าพบ **critical/high** → flag ทันที ก่อน review ต่อ
-   - แนบ snyk output สรุปไว้ใน review report
-   - ถ้าไม่มี `snyk` ติดตั้ง / ไม่มี SNYK_TOKEN → ข้าม scan แล้วทำ manual review ต่อ (ระบุใน report ว่าข้าม Snyk)
-
-3. Review code ที่ teammate คนอื่นทำเสร็จแล้ว
-4. ให้ feedback ที่ actionable พร้อม suggested fixes
-5. ถ้าพบ security issue ให้ flag ทันทีด้วย message ถึง Lead
-6. Mark task complete และ notify Lead เมื่อเสร็จ
+2. Review code ที่ teammate คนอื่นทำเสร็จแล้ว
+3. ให้ feedback ที่ actionable พร้อม suggested fixes
+4. ถ้าพบ security issue ให้ flag ทันทีด้วย message ถึง Lead
+5. Mark task complete และ notify Lead เมื่อเสร็จ
 
 ## ขอบเขตการตัดสิน (บังคับ)
 
