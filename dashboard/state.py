@@ -176,8 +176,9 @@ def _read_status(status_dir, role, created):
         return parse_status_file(f.read()), mtime
 
 
-def build_state(state_file, status_dir, session, tmux):
-    """Spec §3 JSON for GET /api/state."""
+def build_state(state_file, status_dir, session, tmux, project=None):
+    """Spec §3 JSON for GET /api/state. project = fallback name (from start-team.sh) when
+    .team-state.md has no Active Project yet."""
     import time
 
     ts = None
@@ -218,7 +219,7 @@ def build_state(state_file, status_dir, session, tmux):
 
     return {
         "session": {"name": session, "running": sess is not None, "created": created},
-        "project": ts["project"] if ts else None,
+        "project": (ts["project"] if ts else None) or project,
         "stage": ts["stage"] if ts else None,
         "updated": ts["updated"] if ts else None,
         "recent": ts["recent"] if ts else [],

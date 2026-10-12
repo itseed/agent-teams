@@ -224,37 +224,36 @@ _open_url() {
   fi
 }
 
-# start_dashboard — เปิด dashboard server (dashboard/server.py) เบื้องหลังแล้วเปิด browser
-# server ตัวเดิมยังรันอยู่ → ใช้ตัวเดิม; ทุก failure แค่เตือน (return 0 เสมอ — ไม่ทำให้ start-team ล้ม)
+# start_dashboard [project] — (re)start dashboard server (dashboard/server.py) เบื้องหลังแล้วเปิด browser
+# มี server เดิมจาก pid file → ปิดก่อนแล้วเริ่มใหม่ (project อาจเปลี่ยนจากรอบก่อน)
+# project = ชื่อที่แสดงจนกว่า Lead จะ set Active Project ใน .team-state.md
+# ทุก failure แค่เตือน (return 0 เสมอ — ไม่ทำให้ start-team ล้ม)
 start_dashboard() {
-  local url pid i
+  local project="${1:-}" url pid i
   url=$(_dashboard_url)
   if ! command -v python3 >/dev/null 2>&1; then
     echo "⚠️  ไม่พบ python3 — ข้ามการเปิด dashboard" >&2
     return 0
   fi
 
-  pid=$(cat "$DASHBOARD_PID_FILE" 2>/dev/null || true)
-  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && _dashboard_up; then
-    echo "→ dashboard server รันอยู่แล้ว (pid $pid)"
-  else
-    nohup python3 "$AGENT_TEAMS_DIR/dashboard/server.py" --port "${DASHBOARD_PORT:-4780}" \
-      >"$DASHBOARD_LOG" 2>&1 </dev/null &
-    pid=$!
-    echo "$pid" > "$DASHBOARD_PID_FILE"
-    for i in 1 2 3 4 5 6; do
-      _dashboard_up && break
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 0.5
-    done
-    if ! _dashboard_up || ! kill -0 "$pid" 2>/dev/null; then
-      echo "⚠️  dashboard server เริ่มไม่สำเร็จ — ดู $DASHBOARD_LOG" >&2
-      kill "$pid" 2>/dev/null || true
-      rm -f "$DASHBOARD_PID_FILE"
-      return 0
-    fi
-    echo "→ dashboard server เริ่มแล้ว (pid $pid)"
+  stop_dashboard >/dev/null
+  for i in 1 2 3 4; do _dashboard_up || break; sleep 0.25; done   # รอ port ว่างหลังปิดตัวเดิม
+  nohup python3 "$AGENT_TEAMS_DIR/dashboard/server.py" --port "${DASHBOARD_PORT:-4780}" \
+    ${project:+--project "$project"} >"$DASHBOARD_LOG" 2>&1 </dev/null &
+  pid=$!
+  echo "$pid" > "$DASHBOARD_PID_FILE"
+  for i in 1 2 3 4 5 6; do
+    _dashboard_up && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  if ! _dashboard_up || ! kill -0 "$pid" 2>/dev/null; then
+    echo "⚠️  dashboard server เริ่มไม่สำเร็จ — ดู $DASHBOARD_LOG" >&2
+    kill "$pid" 2>/dev/null || true
+    rm -f "$DASHBOARD_PID_FILE"
+    return 0
   fi
+  echo "→ dashboard server เริ่มแล้ว (pid $pid)"
   _open_url "$url"
   echo "→ dashboard: $url"
 }

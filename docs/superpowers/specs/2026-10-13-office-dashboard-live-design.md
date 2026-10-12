@@ -76,7 +76,7 @@ Python: stdlib only, รองรับ python3 ≥ 3.8 (ไม่มี depende
 - `agents` เรียงลำดับคงที่: `lead`, frontend, backend, mobile, devops, designer, architect, qa, reviewer (ครบ 9 เสมอ — role ที่ไม่ได้ spawn มี `status: "absent"`)
 - `status` ∈ `working | idle | done | blocked | offline | absent`
 - `lead`: pane = `dev-team:0.0`; status = `offline` ถ้า pane ตาย ไม่งั้น `working` (Lead ไม่มี status file); task = `null`
-- `project`: ค่าใต้ `## Active Project` — ถ้าเป็น placeholder ที่ขึ้นต้นด้วย `[` → `null`
+- `project`: ค่าใต้ `## Active Project`; ถ้าเป็น placeholder ที่ขึ้นต้นด้วย `[` → ใช้ `--project` ที่ `start-team.sh` ส่งให้ server (project ที่ใช้เริ่มทีม) → ไม่มีทั้งคู่ = `null`
 - `recent`: บรรทัดที่ไม่ว่างใต้ `## Recently Completed` (ตัด `- ` นำหน้า); placeholder `(ยังไม่มี)` → `[]`
 - `evidence`: เนื้อหาหลัง `## Verification evidence` ใน status file ตัดไม่เกิน 600 ตัวอักษร
 - `since`: mtime ของ status file (epoch s) — `null` ถ้าไม่มีไฟล์ที่ใช้ได้
@@ -149,7 +149,9 @@ Python: stdlib only, รองรับ python3 ≥ 3.8 (ไม่มี depende
 
 ### Panels
 
-- Top KPIs: จำนวน working / idle / done / blocked / offline, active project, `updated`
+- Header: ชื่อ project ตัวใหญ่ + chip "เปิดทีมมา …" (= serverTime − `session.created`, นับต่อทุกวินาที; ซ่อนเมื่อ session ไม่รัน)
+- Top KPIs: จำนวน working / idle / done / blocked / offline
+- เวลาต่องาน: working "ทำงานนี้มา", blocked "ติดปัญหามา", done "เสร็จมาแล้ว" = เวลาตั้งแต่ `since` (mtime ของ status file) — แสดงบน label, รายการ agent และ panel รายละเอียด; ไม่มี status file → ไม่แสดง
 - Right: feed
 - Bottom: pipeline stage + Recently Completed (สูงสุด 5)
 - Click character/desk → panel: role, pane, status, task, since (relative), branch, blocker, evidence (`<pre>` scroll)
@@ -159,8 +161,8 @@ Python: stdlib only, รองรับ python3 ≥ 3.8 (ไม่มี depende
 
 - `start_dashboard`:
   1. ไม่มี `python3` → เตือน แล้ว return 0
-  2. pid file `/tmp/agent-teams-dashboard.pid` ชี้ process ที่ยังมีชีวิต และ `/api/state` ตอบ → ใช้ตัวเดิม
-  3. ไม่งั้น `nohup python3 dashboard/server.py --port "${DASHBOARD_PORT:-4780}" >/tmp/agent-teams-dashboard.log 2>&1 &` เขียน pid
+  2. มี server เดิมจาก pid file → ปิดก่อน (project อาจเปลี่ยนจากรอบก่อน)
+  3. `nohup python3 dashboard/server.py --port "${DASHBOARD_PORT:-4780}" --project "$PROJECT" >/tmp/agent-teams-dashboard.log 2>&1 &` เขียน pid
   4. รอ `/api/state` ตอบ (สูงสุด 3s) — ไม่ตอบ → เตือนพร้อม path log แล้ว return 0
   5. เปิด `http://127.0.0.1:<port>/` (open / wslview / xdg-open — logic เดิมของ `open_dashboard`)
 - `stop_dashboard`: kill pid จาก pid file ถ้ายังมีชีวิต แล้วลบ pid file; ไม่มี → เงียบ

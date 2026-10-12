@@ -53,6 +53,9 @@ button{font:inherit;color:inherit}
 .live.wait{color:var(--muted)} .live.wait i{background:var(--muted)}
 @keyframes pulse{50%{opacity:.35}}
 #ago{font-size:12px;color:var(--muted);white-space:nowrap}
+#uptime{font-size:12px;white-space:nowrap;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.brand b#proj{font-size:16px}
+.dur{font-family:var(--mono);font-size:10.5px}
 .kpis{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .kpis::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
 .kpi{min-width:112px;flex:1 1 0;padding:10px 12px;display:flex;flex-direction:column;gap:2px;border-top:3px solid var(--line)}
@@ -181,10 +184,11 @@ pre.ev{margin:0;padding:10px;border-radius:10px;background:var(--panel-solid);bo
     <div class="bar card">
       <div class="brand">
         <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>
-        <div style="min-width:0"><b>Agent Team Floor</b><small id="sub">กำลังเชื่อมต่อ…</small></div>
+        <div style="min-width:0"><b id="proj">กำลังเชื่อมต่อ…</b><small id="sub">Agent Team Floor</small></div>
       </div>
       <div class="spacer"></div>
       <div class="live wait" id="live"><i></i><span>กำลังเชื่อมต่อ</span></div>
+      <div id="uptime" class="mono" title="เวลาตั้งแต่ start-team.sh สร้าง tmux session" hidden></div>
       <div id="ago"></div>
     </div>
     <div class="kpis" id="kpis"></div>
@@ -487,7 +491,9 @@ function apply(s){
   snap=s; serverSkew=s.serverTime*1000-Date.now();
   s.agents.forEach(d=>{const a=AG[d.role]; if(a) setStatus(a,d,first);});
   $('#idle').hidden=!!s.session.running;
-  $('#sub').textContent=[s.project?`project: ${s.project}`:'ยังไม่ได้ตั้ง Active Project',s.session.name].join(' · ');
+  $('#proj').textContent=s.project||'ยังไม่ได้ตั้ง project';
+  $('#sub').textContent=`Agent Team Floor · ${s.session.name}`;
+  document.title=s.project?`${s.project} · Agent Team Floor`:'Agent Team Floor';
   renderKpis(); renderPipe(); renderRooms(); renderPanel();
 }
 function setLive(ok){
@@ -525,9 +531,10 @@ function renderRooms(){
     r.alert.visible=ROLES.some(x=>HOME[x]===r.id&&AG[x].status==='blocked');
   });
   ROLES.forEach(role=>{const a=AG[role], d=a.data; if(!d) return;
-    const st=d.status, extra=st==='working'?clip(d.task||'',36):st==='blocked'?'⚠ blocked':st==='done'?'✓ เสร็จ':st==='offline'?'offline':'';
+    const st=d.status, extra=st==='working'?clip(d.task||'',30):st==='blocked'?'⚠ blocked':st==='done'?'✓ เสร็จ':st==='offline'?'offline':'';
+    const t=TIMED[st]&&d.since!=null?durShort(since(d.since)):'';
     a.label.className=`al s-${st}${selected&&selected.agent===role?' sel':''}`;
-    a.label.innerHTML=`<i style="background:${hex(COLOR[role])}"></i><b>${esc(LABEL[role])}</b>${extra?`<span>${esc(extra)}</span>`:''}`;
+    a.label.innerHTML=`<i style="background:${hex(COLOR[role])}"></i><b>${esc(LABEL[role])}</b>${extra?`<span>${esc(extra)}</span>`:''}${t?`<span class="dur">${esc(t)}</span>`:''}`;
     a.label.title=d.task||'';
   });
 }
@@ -540,10 +547,19 @@ function select(s){selected=s; ROOMS.forEach(r=>{r.hi.visible=!!(s&&s.room===r.i
 
 const X='<button class="x" data-close aria-label="ปิด"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
 const badge=st=>`<span class="st st-${esc(st)}">${esc(ST_TH[st]||st)}</span>`;
+// elapsed seconds since an epoch timestamp, on the server's clock
+const since=sec=>sec==null?null:Math.max(0,Math.round((Date.now()+serverSkew)/1000-sec));
+function dur(d){if(d==null)return '';
+  if(d<60)return 'ไม่ถึง 1 นาที'; if(d<3600)return `${Math.floor(d/60)} นาที`;
+  if(d<86400)return `${Math.floor(d/3600)} ชม. ${Math.floor(d%3600/60)} นาที`; return `${Math.floor(d/86400)} วัน ${Math.floor(d%86400/3600)} ชม.`;}
+function durShort(d){if(d==null)return ''; if(d<3600)return `${Math.max(1,Math.floor(d/60))}น`;
+  if(d<86400)return `${Math.floor(d/3600)}ชม.${Math.floor(d%3600/60)}น`; return `${Math.floor(d/86400)}ว.${Math.floor(d%86400/3600)}ชม.`;}
+// time on the current task (C): working/blocked count from the status file write; done = since finished
+const TIMED={working:'ทำงานนี้มา',blocked:'ติดปัญหามา',done:'เสร็จมาแล้ว'};
 function rel(sec){if(sec==null)return '—'; const now=(Date.now()+serverSkew)/1000, d=Math.max(0,Math.round(now-sec));
   return d<45?'เมื่อสักครู่':d<3600?`${Math.round(d/60)} นาทีที่แล้ว`:d<86400?`${Math.floor(d/3600)} ชม. ${Math.round(d%3600/60)} นาทีที่แล้ว`:`${Math.floor(d/86400)} วันที่แล้ว`;}
 function agentRow(d){return `<button class="row" data-agent="${esc(d.role)}"><i class="dot" style="background:${hex(COLOR[d.role])}"></i>
-  <span class="who">${esc(LABEL[d.role])}<small>${esc(d.task||(d.status==='absent'?'—':'ไม่มีงาน'))}</small></span>${badge(d.status)}</button>`;}
+  <span class="who">${esc(LABEL[d.role])}<small>${TIMED[d.status]&&d.since!=null?`<span class="dur">${esc(durShort(since(d.since)))}</span> · `:''}${esc(d.task||(d.status==='absent'?'—':'ไม่มีงาน'))}</small></span>${badge(d.status)}</button>`;}
 function renderPanel(){
   const el=$('#panel');
   if(!snap){el.innerHTML='<p class="empty">กำลังโหลดสถานะทีม…</p>';return;}
@@ -554,7 +570,7 @@ function renderPanel(){
     const d=snap.agents.find(a=>a.role===selected.agent); if(!d){select(null);return;}
     el.innerHTML=`<div class="ph"><div><h2>${esc(LABEL[d.role])}</h2><p>${esc(ROOM[HOME[d.role]].name)} · pane <span class="mono">${esc(d.pane||'—')}</span></p></div>${X}</div>
       ${badge(d.status)}
-      <div class="metrics"><div class="metric"><span>อัปเดตสถานะ</span><b>${esc(rel(d.since))}</b></div><div class="metric"><span>Branch</span><b class="mono">${esc(d.branch||'—')}</b></div></div>
+      <div class="metrics"><div class="metric"><span>${esc(TIMED[d.status]||'อัปเดตสถานะ')}</span><b>${esc(TIMED[d.status]&&d.since!=null?dur(since(d.since)):rel(d.since))}</b></div><div class="metric"><span>Branch</span><b class="mono">${esc(d.branch||'—')}</b></div></div>
       ${d.error?`<p class="err">${esc(d.error)}</p>`:''}
       <p class="sec">Task</p><p class="task">${esc(d.task||'ไม่มีงาน')}</p>
       ${d.blocker?`<p class="sec">Blocker</p><p class="blocker">${esc(d.blocker)}</p>`:''}
@@ -610,7 +626,9 @@ function tick(){
   if(!reduceMotion) M.alert.opacity=.12+.1*(Math.sin(performance.now()/260)+1)/2;
   const sa=selected&&selected.agent&&AG[selected.agent];
   if(sa&&sa.shown){ring.visible=true; ring.position.set(sa.g.position.x,.03,sa.g.position.z);} else ring.visible=false;
-  secT-=dt; if(secT<=0){secT=1; $('#ago').textContent=everOk?`อัปเดต ${Math.max(0,Math.round((Date.now()-lastOk)/1000))} วินาทีก่อน`:'';}
+  secT-=dt; if(secT<=0){secT=1; $('#ago').textContent=everOk?`อัปเดต ${Math.max(0,Math.round((Date.now()-lastOk)/1000))} วินาทีก่อน`:'';
+    const up=$('#uptime'), run=snap&&snap.session.running&&snap.session.created;
+    up.hidden=!run; if(run) up.textContent=`เปิดทีมมา ${dur(since(snap.session.created))}`;}
   const w=app.clientWidth,h=app.clientHeight;
   ROOMS.forEach(r=>project(r.label,r.cx,1.3,r.top?r.z0+1.2:r.z1-1.2,w,h));
   ROLES.forEach(role=>{const a=AG[role];

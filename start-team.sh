@@ -160,7 +160,7 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   read -r ans
   if [[ "${ans:-Y}" != "n" && "${ans:-Y}" != "N" ]]; then
     echo "→ Resuming session '$SESSION'..."
-    [[ "$OPEN_DASHBOARD" == "yes" ]] && start_dashboard
+    [[ "$OPEN_DASHBOARD" == "yes" ]] && start_dashboard "$PROJECT"
     if [[ -z "${TMUX:-}" ]]; then
       tmux attach-session -t "$SESSION"
     else
@@ -426,7 +426,7 @@ echo "(numeric index 0.N ไม่เสถียร — RTK เลื่อน 
 echo "(เพิ่ม role ภายหลัง: ./scripts/add-role.sh <role>)"
 echo ""
 
-[[ "$OPEN_DASHBOARD" == "yes" ]] && start_dashboard
+[[ "$OPEN_DASHBOARD" == "yes" ]] && start_dashboard "$PROJECT"
 
 # Attach (skip if already in tmux)
 if [[ -z "${TMUX:-}" ]]; then

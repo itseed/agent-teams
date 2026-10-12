@@ -403,8 +403,8 @@ DASHBOARD_PORT=4781 ./start-team.sh --dashboard   # เปลี่ยน port (
 
 #### Office Floor dashboard (v1)
 
-ออฟฟิศ 3D ที่แสดงสถานะจริงของทีม `dev-team` — ใคร working / idle / done / blocked / offline, task, pipeline stage
-และ feed เหตุการณ์ (อัปเดตทุก 2 วินาที, read-only)
+ออฟฟิศ 3D ที่แสดงสถานะจริงของทีม `dev-team` — ชื่อ project, เวลาที่เปิดทีมมา, ใคร working / idle / done / blocked / offline,
+task พร้อมเวลาที่ใช้กับงานนั้น, pipeline stage และ feed เหตุการณ์ (อัปเดตทุก 2 วินาที, read-only)
 
 - ตอบ `y` ตอน `start-team.sh` → รัน `dashboard/server.py` เบื้องหลังที่ `http://127.0.0.1:4780/` แล้วเปิด browser
   (log: `/tmp/agent-teams-dashboard.log`, pid: `/tmp/agent-teams-dashboard.pid`); `stop-team.sh` ปิด server ให้
