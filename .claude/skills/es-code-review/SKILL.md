@@ -16,6 +16,13 @@ Review โค้ดอย่างเป็นระบบตามมาตร�
 
 ## ขั้นตอน
 
+0. **รัน Snyk scan ก่อน manual review เสมอ** (ถ้า repo ที่ review มี package.json / requirements.txt / pubspec.yaml ฯลฯ — รันในโฟลเดอร์นั้น)
+   ```bash
+   snyk test --severity-threshold=high 2>&1 | head -60
+   ```
+   - พบ **critical/high** → เป็น 🔴 Blocker ทันที (flag ก่อน review ต่อ)
+   - แนบสรุป snyk output ไว้ใน review report
+   - ไม่มี `snyk` ติดตั้ง / ไม่มี `SNYK_TOKEN` / รันไม่ผ่าน → ข้าม scan แล้ว manual review ต่อ และ**ระบุใน report ว่าข้าม Snyk พร้อมเหตุผล**
 1. **เข้าใจ context ก่อน** — อ่าน PR description / commit message ว่าตั้งใจแก้อะไร
    ดู diff ทั้งหมดก่อน แล้วค่อยลงรายละเอียดทีละไฟล์ อย่า review โดยไม่รู้ว่าโค้ดนี้ควรทำอะไร
 2. **เลือก checklist ตาม stack** ของไฟล์ที่แก้ (ดูหัวข้อด้านล่าง)
