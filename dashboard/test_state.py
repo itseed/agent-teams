@@ -249,5 +249,63 @@ class BuildStateTest(unittest.TestCase):
         self.assertEqual(self.agent(st, "backend")["status"], "working")
 
 
+class ServerTest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        import threading
+        import server
+        self.tmp = tempfile.TemporaryDirectory()
+        state_file = os.path.join(self.tmp.name, ".team-state.md")
+        with open(state_file, "w") as f:
+            f.write(TEAM_STATE)
+        self.httpd = server.make_server(0, state_file, os.path.join(self.tmp.name, "none"), "dev-team",
+                                        FakeTmux({"created": 1, "panes": {}}))
+        self.port = self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.tmp.cleanup()
+
+    def request(self, path, method="GET"):
+        import http.client
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        c.request(method, path)
+        r = c.getresponse()
+        body = r.read()
+        c.close()
+        return r, body
+
+    def test_api_state(self):
+        import json
+        r, body = self.request("/api/state")
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.getheader("Cache-Control"), "no-store")
+        self.assertIn("application/json", r.getheader("Content-Type"))
+        data = json.loads(body)
+        self.assertEqual(len(data["agents"]), 9)
+        self.assertTrue(data["session"]["running"])
+
+    def test_index(self):
+        for path in ("/", "/index.html"):
+            r, body = self.request(path)
+            self.assertEqual(r.status, 200)
+            self.assertIn("text/html", r.getheader("Content-Type"))
+            self.assertIn(b"<html", body.lower())
+
+    def test_other_paths_404(self):
+        for path in ("/state.py", "/../state.py", "/etc/passwd", "/office-floor.html/../state.py"):
+            r, _ = self.request(path)
+            self.assertEqual(r.status, 404, path)
+
+    def test_post_rejected(self):
+        r, _ = self.request("/api/state", "POST")
+        self.assertIn(r.status, (405, 501))
+
+    def test_binds_localhost_only(self):
+        self.assertEqual(self.httpd.server_address[0], "127.0.0.1")
+
+
 if __name__ == "__main__":
     unittest.main()
