@@ -113,7 +113,8 @@ Python: stdlib only, รองรับ python3 ≥ 3.8 (ไม่มี depende
 | Dev Room | frontend, backend, mobile, devops |
 | Design & Architecture | designer, architect |
 | QA & Review | qa, reviewer |
-| Lounge | ที่พักของคนที่ idle |
+| Lounge | ที่พักของคนที่ idle — โซฟา + โต๊ะกลมคุยเล่น 2 ตัว |
+| Pantry & Dining | ที่พักของคนที่ idle — เคาน์เตอร์กาแฟ, ชั้นขนม, โต๊ะอาหาร |
 
 แต่ละ role มีโต๊ะประจำ; สีตัวละคร = `role_color` ของ tmux border (frontend cyan, backend blue, mobile magenta, devops green, designer colour211, architect colour141, qa colour208, reviewer red, lead yellow — แปลงเป็น hex ที่อ่านได้ทั้ง light/dark)
 
@@ -127,6 +128,12 @@ Python: stdlib only, รองรับ python3 ≥ 3.8 (ไม่มี depende
 | blocked | ยืนที่โต๊ะ, ไอคอน ⚠ แดง, ห้อง highlight กระพริบ (นิ่งถ้า reduced-motion) |
 | offline | ไม่มีตัวละคร, โต๊ะเทา, ป้าย "offline" |
 | absent | โต๊ะจาง ไม่มีตัวละคร |
+
+### Idle behaviour + mood emoji
+
+- idle เลือกที่นั่งในกลุ่มที่มีคนอยู่แล้ว 1–2 คน (กลุ่ม ≤ 3) ไม่งั้นที่ว่างใดก็ได้; ทุก 1–2 นาทีย้ายไปกาแฟ/ขนม 15–25 วินาทีแล้วกลับไปนั่ง (ตกแต่งเท่านั้น — สถานะยังมาจาก API; ปิดเมื่อ reduced-motion)
+- ฟอง emoji เหนือหัว (เวลานับจาก `since`): blocked < 10 นาที 🤔 · 10–30 😣 · > 30 🤯; done < 5 นาที 🎉 · < 30 😌 · ≥ 30 🥱; idle ตามจุด ☕ 🍪 🍜 💬
+- feed: done "🎉 เสร็จแล้ว", blocked "🤔 blocked"
 
 ### Sync
 

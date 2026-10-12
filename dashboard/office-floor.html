@@ -144,6 +144,10 @@ pre.ev{margin:0;padding:10px;border-radius:10px;background:var(--panel-solid);bo
 .al.s-offline{opacity:.75;border-style:dashed} .al.s-offline span{color:var(--warn)}
 .al.sel{outline:2px solid var(--accent)}
 
+.bub{position:absolute;left:0;top:0;display:flex;font-size:21px;line-height:1;pointer-events:auto;cursor:default;will-change:transform;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.25))}
+.bub.pop{animation:pop .55s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{0%{scale:.2;opacity:0}100%{scale:1;opacity:1}}
 #ticker{display:none}
 #hint{position:absolute;right:342px;bottom:16px;font-size:11.5px;color:var(--muted);pointer-events:none;white-space:nowrap}
 
@@ -172,7 +176,7 @@ pre.ev{margin:0;padding:10px;border-radius:10px;background:var(--panel-solid);bo
   .rl{font-size:10.5px;padding:2px 6px}
   .al span{display:none}
 }
-@media (prefers-reduced-motion:reduce){.live i,#feed li{animation:none}}
+@media (prefers-reduced-motion:reduce){.live i,#feed li,.bub.pop{animation:none}}
 </style>
 </head>
 <body>
@@ -245,7 +249,8 @@ const ROOMS=[
  {id:'design',name:'Design & Architecture',th:'designer · architect',x0:2,x1:8,z0:-12,z1:0,door:5,cols:2,mx:1.6},
  {id:'qa',name:'QA & Review',th:'qa · reviewer',x0:8,x1:14,z0:-12,z1:0,door:11,cols:2,mx:1.6},
  {id:'lead',name:'Lead Office',th:'Lead · จุดส่งงานที่เสร็จแล้ว',x0:-14,x1:-4,z0:4,z1:12,door:-9,cols:1,mx:2.2},
- {id:'lounge',name:'Lounge',th:'agent ที่ว่างงาน',x0:-4,x1:14,z0:4,z1:12,door:5}
+ {id:'lounge',name:'Lounge',th:'โซฟา · โต๊ะคุยเล่น (agent ที่ว่าง)',x0:-4,x1:5,z0:4,z1:12,door:-1.2},
+ {id:'pantry',name:'Pantry & Dining',th:'กาแฟ · ขนม · โต๊ะอาหาร (agent ที่ว่าง)',x0:5,x1:14,z0:4,z1:12,door:6.3}
 ];
 const ROOM={}; ROOMS.forEach(r=>{ROOM[r.id]=r; r.top=r.z1===0; r.front=r.top?r.z1-1:r.z0+1; r.cx=(r.x0+r.x1)/2; r.cz=(r.z0+r.z1)/2;});
 
@@ -285,9 +290,9 @@ const floorMat={}; ROOMS.forEach(r=>floorMat[r.id]=std(0));
 
 const PAL={
  light:{bg:0xe8ecf0,ground:0xdde3e8,corridor:0xf6f7f8,wall:0xfbfcfd,wallTall:0xf1f3f6,desk:0xf4f3ef,leg:0x9aa3ad,chair:0x2b2f36,sofa:0x5d6b84,pot:0xe9e4dc,board:0xffffff,
-  floors:{dev:0xe4eaf6,design:0xf5e6ec,qa:0xf6eedc,lead:0xefe7dd,lounge:0xe3efe1},hemi:.85,sun:.85,accent:0x2f5bea,crit:0xcf3a3a},
+  floors:{dev:0xe4eaf6,design:0xf5e6ec,qa:0xf6eedc,lead:0xefe7dd,lounge:0xe3efe1,pantry:0xf4ead8},hemi:.85,sun:.85,accent:0x2f5bea,crit:0xcf3a3a},
  dark:{bg:0x11151b,ground:0x151a21,corridor:0x252c35,wall:0x46505e,wallTall:0x3a434f,desk:0x5a636f,leg:0x2c333c,chair:0x0f1216,sofa:0x3c4a63,pot:0x5b5650,board:0x8d96a3,
-  floors:{dev:0x1f2838,design:0x2f2129,qa:0x2e281b,lead:0x2d261e,lounge:0x1d2b1e},hemi:.55,sun:.7,accent:0x6f8fff,crit:0xef6464}
+  floors:{dev:0x1f2838,design:0x2f2129,qa:0x2e281b,lead:0x2d261e,lounge:0x1d2b1e,pantry:0x2e2618},hemi:.55,sun:.7,accent:0x6f8fff,crit:0xef6464}
 };
 function isDark(){const t=document.documentElement.getAttribute('data-theme'); if(t==='dark')return true; if(t==='light')return false; return matchMedia('(prefers-color-scheme: dark)').matches;}
 function applyTheme(){
@@ -372,14 +377,42 @@ plant(1.3,-11.2); plant(7.4,-11.2,.9); plant(13.4,-11.2,.9);
 plant(-13.3,11.3,1.1); plant(-4.7,11.3,.9);
 box(.5,1.6,2.4,M.desk,-13.6,.8,8.4);
 const DONE=lin(-13.1,-5.3,8).map(x=>({kind:'report',room:'lead',x,z:6.3,rot:0,sit:false,approach:[{x,z:ROOM.lead.front}]}));
-// lounge: two sofas on the back wall + coffee bar
-const LOUNGE=[];
-[0,7].forEach(cx=>{box(3.6,.42,.9,M.sofa,cx,.21,11.2); box(3.6,.5,.2,M.sofa,cx,.66,11.6);
-  [-1.2,0,1.2].forEach(dx=>LOUNGE.push({kind:'sofa',room:'lounge',x:cx+dx,z:10.95,rot:PI,sit:true,approach:[{x:cx+dx,z:ROOM.lounge.front}]}));});
-box(.7,1,3.4,M.wood,13.3,.5,8.2); box(.9,.06,3.6,M.desk,13.3,1.03,8.2);
-[6.9,8.2,9.5].forEach(z=>LOUNGE.push({kind:'coffee',room:'lounge',x:12.4,z,rot:PI/2,sit:false,approach:[{x:11.2,z:ROOM.lounge.front},{x:11.2,z}]}));
+// idle areas: Lounge (sofa + 2 chat tables) and Pantry & Dining (coffee bar, snack shelf, dining table)
+// spot.group = furniture an agent shares with others (idle agents prefer a group someone already sits at)
+const IDLE=[], LF=ROOM.lounge.front, PF=ROOM.pantry.front;
+const stool=(x,z)=>{mesh(G('stool',()=>new THREE.CylinderGeometry(.21,.21,.07,14)),M.chair,x,.46,z);
+  mesh(G('sstem',()=>new THREE.CylinderGeometry(.035,.035,.44,8)),M.leg,x,.22,z);};
+// sofa on the lounge back wall
+box(3.6,.42,.9,M.sofa,-1.6,.21,11.2); box(3.6,.5,.2,M.sofa,-1.6,.66,11.6);
+[-2.8,-1.6,-.4].forEach(x=>IDLE.push({kind:'sofa',group:'sofa',room:'lounge',x,z:10.95,rot:PI,sit:true,approach:[{x,z:LF}]}));
+// two round chat tables, 3 stools each
+[[1.5,'chatA',-1],[3.6,'chatB',1]].forEach(([cx,grp,side])=>{const cz=8.2;
+  mesh(G('rtop',()=>new THREE.CylinderGeometry(.55,.55,.05,24)),M.wood,cx,.74,cz);
+  mesh(G('rstem',()=>new THREE.CylinderGeometry(.06,.06,.7,8)),M.leg,cx,.36,cz);
+  const lane=cx+side*1.05;
+  [[cx,cz-.85,0,[{x:cx,z:LF}]],[cx,cz+.85,PI,[{x:lane,z:LF},{x:lane,z:cz+.85}]],[cx+side*.85,cz,-side*PI/2,[{x:lane,z:LF},{x:lane,z:cz}]]]
+    .forEach(([x,z,rot,approach])=>{stool(x,z); IDLE.push({kind:'chat',group:grp,room:'lounge',x,z,rot,sit:true,approach});});
+});
 box(.05,1.2,2.2,M.monitor,-3.9,1.6,8.4); mesh(G('lobtv',()=>new THREE.PlaneGeometry(2.05,1.05)),SCREENS[0],-3.86,1.6,8.4).rotation.y=PI/2;
-plant(3.5,11.3); plant(-3.3,4.8,.9);
+plant(-3.3,4.8,.9); plant(4.4,11.3,.9);
+// pantry: coffee bar on the right wall (machine + cups) and a snack shelf on the back wall
+box(.7,1,3.4,M.wood,13.3,.5,8.2); box(.9,.06,3.6,M.desk,13.3,1.03,8.2);
+box(.45,.55,.42,M.monitor,13.35,1.33,7.1); mesh(G('cled',()=>new THREE.PlaneGeometry(.08,.05)),M.ledA,13.12,1.45,7.1).rotation.y=-PI/2;
+const CUP=std(0xf4f1ea);
+[[13.2,7.9],[13.4,8.1],[13.25,8.4]].forEach(([x,z])=>mesh(G('cup',()=>new THREE.CylinderGeometry(.06,.05,.12,10)),CUP,x,1.12,z));
+[6.9,8.4].forEach(z=>IDLE.push({kind:'coffee',group:'bar',room:'pantry',x:12.4,z,rot:PI/2,sit:false,approach:[{x:11.4,z:PF},{x:11.4,z}]}));
+box(2.4,1.4,.42,M.desk,11.4,.7,11.6);
+for(let i=0;i<12;i++) box(.28,.26,.2,STICKY[i%5],10.5+(i%6)*.36,.42+Math.floor(i/6)*.48,11.36);
+IDLE.push({kind:'snack',group:'bar',room:'pantry',x:11.4,z:10.6,rot:0,sit:false,approach:[{x:11.4,z:PF}]});
+// dining table with 3 chairs per side + a fruit bowl
+box(3.8,.06,1.2,M.wood,8.4,.74,8.4); box(.08,.7,1,M.leg,6.7,.36,8.4); box(.08,.7,1,M.leg,10.1,.36,8.4);
+mesh(G('bowl',()=>new THREE.CylinderGeometry(.22,.14,.1,16)),CUP,8.4,.82,8.4);
+[[8.3,.0],[8.5,.1],[8.4,-.12]].forEach(([x,dz],i)=>mesh(G('fruit',()=>new THREE.SphereGeometry(.08,10,8)),STICKY[i],x,.9,8.4+dz));
+[7.3,8.4,9.5].forEach(x=>{
+  chair(x,7.55,0); IDLE.push({kind:'dine',group:'dining',room:'pantry',x,z:7.65,rot:0,sit:true,approach:[{x,z:PF}]});
+  chair(x,9.25,PI); IDLE.push({kind:'dine',group:'dining',room:'pantry',x,z:9.15,rot:PI,sit:true,approach:[{x:6.1,z:PF},{x:6.1,z:9.9},{x,z:9.9}]});
+});
+plant(5.6,11.3,.9);
 // trees outside
 [[-18,-9],[-18.5,-1],[-18,9],[18,-8],[18.5,-1],[18,9],[-9,-15.5],[1,-16],[11,-15.5],[-10,15.5],[0,16],[10,15.5]].forEach(([x,z],i)=>{
   const s=.85+((i*7)%5)*.08; mesh(G('trunk',()=>new THREE.CylinderGeometry(.14,.18,1.6,8)),M.trunk,x,.8*s,z).scale.setScalar(s);
@@ -398,7 +431,8 @@ function makeAgent(role,i){
   mesh(pGeo.torso,shirt,0,1.06,0,g); mesh(pGeo.head,skin,0,1.6,0,g); mesh(pGeo.hair,HAIR[i%HAIR.length],0,1.63,-.01,g);
   g.traverse(o=>{if(o.isMesh){o.userData.role=role;pickables.push(o);}});
   const label=document.createElement('div'); label.className='al'; label.dataset.agent=role; labelsEl.appendChild(label);
-  const a={role,i,g,legL,legR,armL,armR,label,desk:DESK[role],state:'rest',path:[],phase:i,speed:1.8,cur:null,data:null,status:null,shown:false};
+  const bubble=document.createElement('div'); bubble.className='bub'; labelsEl.appendChild(bubble);
+  const a={role,i,g,legL,legR,armL,armR,label,bubble,mood:'',idleT:0,desk:DESK[role],state:'rest',path:[],phase:i,speed:1.8,cur:null,data:null,status:null,shown:false};
   g.visible=false; AG[role]=a; return a;
 }
 const labelsEl=$('#labels');
@@ -432,18 +466,32 @@ function updateAgent(a,dt){
     a.g.position.y=Math.abs(Math.cos(a.phase))*.03;
   } else {
     a.g.rotation.y=angLerp(a.g.rotation.y,a.cur.rot,Math.min(1,dt*6));
+    if(a.status==='idle'&&!reduceMotion&&(a.idleT-=dt)<=0) wander(a);
     if(a.sitting&&a.cur.kind==='desk'&&a.status==='working'&&!reduceMotion){const n=performance.now();
       a.armL.rotation.x=-.95+Math.sin(n/180+a.i)*.05; a.armR.rotation.x=-.95+Math.cos(n/170+a.i)*.05;}
   }
 }
 
-/* status → spot. idle agents keep their lounge spot while they stay idle */
+/* idle: join a small group (1–2 people already there) so it looks like a chat, otherwise any free seat.
+   Random choice here is decoration only — the status itself always comes from /api/state */
+function idleSeat(a){
+  const free=IDLE.filter(s=>s.sit&&!s.occ);
+  const company=g=>IDLE.filter(o=>o.group===g&&o.occ&&o.occ!==a).length;
+  const social=free.filter(s=>{const n=company(s.group); return n>=1&&n<=2;}); // join a small group, groups stay ≤3
+  const pool=social.length?social:free;
+  return pool.length?pool[Math.floor(Math.random()*pool.length)]:(IDLE.find(s=>!s.occ)||IDLE[0]);
+}
+function wander(a){ // seated → grab coffee/snack for a bit; standing → sit back down
+  const stand=IDLE.filter(s=>!s.sit&&!s.occ);
+  if(a.cur.sit&&stand.length){goTo(a,stand[Math.floor(Math.random()*stand.length)]); a.idleT=15+Math.random()*10;}
+  else {const t=idleSeat(a); if(t!==a.cur) goTo(a,t); a.idleT=60+Math.random()*60;}
+}
+/* status → spot. idle agents keep their idle spot while they stay idle */
 function targetFor(a,status){
   if(status==='working') return a.desk;
   if(status==='blocked') return a.desk.stand;
   if(status==='done') return DONE[ROLES.indexOf(a.role)-1]||DONE[0];
-  if(status==='idle'){ if(a.cur&&a.cur.kind!=='desk'&&LOUNGE.includes(a.cur)) return a.cur;
-    return LOUNGE.find(s=>!s.occ)||LOUNGE[0]; }
+  if(status==='idle') return a.cur&&IDLE.includes(a.cur)?a.cur:idleSeat(a);
   return null; // offline / absent → hidden
 }
 function setStatus(a,data,first){
@@ -451,6 +499,8 @@ function setStatus(a,data,first){
   a.data=data; a.status=status;
   a.desk.screen.material=status==='working'?SCREENS[a.i%4]:M.screenOff;
   if(!t){release(a); a.shown=false; a.g.visible=false; a.cur=null; return;}
+  if(status==='idle'&&a.prevStatus!=='idle') a.idleT=40+Math.random()*60;
+  a.prevStatus=status;
   if(!a.shown||first||!a.cur){a.shown=true; a.g.visible=true; jump(a,t); return;}
   if(t!==a.cur) goTo(a,t);
 }
@@ -474,8 +524,8 @@ function diff(prev,cur){
     const task=n.task?`: ${clip(n.task,80)}`:'';
     if(o.status!==n.status){
       if(n.status==='working') feed(n.role,`รับงาน${task}`,'working');
-      else if(n.status==='done') feed(n.role,`เสร็จแล้ว${task}`,'done');
-      else if(n.status==='blocked') feed(n.role,`blocked: ${clip(n.blocker||n.task||'ไม่ระบุ',80)}`,'blocked');
+      else if(n.status==='done') feed(n.role,`🎉 เสร็จแล้ว${task}`,'done');
+      else if(n.status==='blocked') feed(n.role,`🤔 blocked: ${clip(n.blocker||n.task||'ไม่ระบุ',80)}`,'blocked');
       else if(n.status==='idle'&&o.status==='blocked') feed(n.role,'หาย blocked แล้ว · ว่าง','idle');
       else if(n.status==='idle'&&(o.status==='done'||o.status==='working')) feed(n.role,'ว่าง','idle');
       else if(n.status==='offline') feed(n.role,'offline','offline');
@@ -494,7 +544,7 @@ function apply(s){
   $('#proj').textContent=s.project||'ยังไม่ได้ตั้ง project';
   $('#sub').textContent=`Agent Team Floor · ${s.session.name}`;
   document.title=s.project?`${s.project} · Agent Team Floor`:'Agent Team Floor';
-  renderKpis(); renderPipe(); renderRooms(); renderPanel();
+  renderKpis(); renderPipe(); renderRooms(); renderMoods(); renderPanel();
 }
 function setLive(ok){
   const el=$('#live'); el.className='live'+(ok?'':' off');
@@ -525,7 +575,7 @@ function renderPipe(){
 const inRoom=id=>ROLES.filter(r=>HOME[r]===id||(AG[r].shown&&AG[r].cur&&AG[r].cur.room===id&&id!==HOME[r]));
 function renderRooms(){
   ROOMS.forEach(r=>{
-    if(r.id==='lounge'){r.labelCount.textContent=`ว่าง ${ROLES.filter(x=>AG[x].status==='idle').length}`;}
+    if(r.id==='lounge'||r.id==='pantry'){r.labelCount.textContent=`พัก ${ROLES.filter(x=>AG[x].status==='idle'&&AG[x].cur&&AG[x].cur.room===r.id).length}`;}
     else {const own=ROLES.filter(x=>HOME[x]===r.id&&AG[x].status&&AG[x].status!=='absent');
       r.labelCount.textContent=`${own.filter(x=>AG[x].status==='working').length}/${own.length} ทำงาน`;}
     r.alert.visible=ROLES.some(x=>HOME[x]===r.id&&AG[x].status==='blocked');
@@ -554,6 +604,21 @@ function dur(d){if(d==null)return '';
   if(d<86400)return `${Math.floor(d/3600)} ชม. ${Math.floor(d%3600/60)} นาที`; return `${Math.floor(d/86400)} วัน ${Math.floor(d%86400/3600)} ชม.`;}
 function durShort(d){if(d==null)return ''; if(d<3600)return `${Math.max(1,Math.floor(d/60))}น`;
   if(d<86400)return `${Math.floor(d/3600)}ชม.${Math.floor(d%3600/60)}น`; return `${Math.floor(d/86400)}ว.${Math.floor(d%86400/3600)}ชม.`;}
+// mood bubble: blocked/done escalate with time; idle shows what they're doing at the spot
+const SPOT_EMOJI={coffee:['☕','กำลังชงกาแฟ'],snack:['🍪','หยิบขนม'],dine:['🍜','กินข้าว'],chat:['💬','นั่งคุยกัน']};
+function mood(a){
+  const d=a.data; if(!d||!a.shown) return ['',''];
+  const t=d.since!=null?since(d.since):0, m=dur(d.since!=null?t:null);
+  if(d.status==='blocked') return t<600?['🤔',`ติดปัญหา ${m}`]:t<1800?['😣',`ติดปัญหามา ${m}`]:['🤯',`ติดปัญหามา ${m} — ต้องการความช่วยเหลือ`];
+  if(d.status==='done') return t<300?['🎉','เพิ่งทำเสร็จ']:t<1800?['😌',`รอ Lead ตรวจ ${m}`]:['🥱',`รอ Lead ตรวจนาน ${m}`];
+  if(d.status==='idle'&&a.state==='rest'&&a.cur&&SPOT_EMOJI[a.cur.kind]) return SPOT_EMOJI[a.cur.kind];
+  return ['',''];
+}
+function renderMoods(){ROLES.forEach(role=>{const a=AG[role], [e,title]=mood(a);
+  a.bubble.title=title;
+  if(e===a.mood) return; a.mood=e; a.bubble.textContent=e;
+  if(e&&!reduceMotion){a.bubble.classList.remove('pop'); void a.bubble.offsetWidth; a.bubble.classList.add('pop');}
+});}
 // time on the current task (C): working/blocked count from the status file write; done = since finished
 const TIMED={working:'ทำงานนี้มา',blocked:'ติดปัญหามา',done:'เสร็จมาแล้ว'};
 function rel(sec){if(sec==null)return '—'; const now=(Date.now()+serverSkew)/1000, d=Math.max(0,Math.round(now-sec));
@@ -615,8 +680,8 @@ canvas.addEventListener('pointerup',e=>{
 function resize(){const w=app.clientWidth,h=app.clientHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();}
 addEventListener('resize',resize); resize();
 const clock=new THREE.Clock(), v=new THREE.Vector3(); let ledT=0, secT=0;
-function project(el,x,y,z,w,h){v.set(x,y,z).project(camera); const vis=v.z<1&&v.x>-1.1&&v.x<1.1&&v.y>-1.1&&v.y<1.1;
-  el.style.display=vis?'flex':'none'; if(vis) el.style.transform=`translate(${(v.x+1)/2*w}px,${(1-v.y)/2*h}px) translate(-50%,-100%)`;}
+function project(el,x,y,z,w,h,dy=0){v.set(x,y,z).project(camera); const vis=v.z<1&&v.x>-1.1&&v.x<1.1&&v.y>-1.1&&v.y<1.1;
+  el.style.display=vis?'flex':'none'; if(vis) el.style.transform=`translate(${(v.x+1)/2*w}px,${(1-v.y)/2*h-dy}px) translate(-50%,-100%)`;}
 function tick(){
   const dt=Math.min(clock.getDelta(),.05);
   ROLES.forEach(r=>updateAgent(AG[r],dt));
@@ -628,11 +693,13 @@ function tick(){
   if(sa&&sa.shown){ring.visible=true; ring.position.set(sa.g.position.x,.03,sa.g.position.z);} else ring.visible=false;
   secT-=dt; if(secT<=0){secT=1; $('#ago').textContent=everOk?`อัปเดต ${Math.max(0,Math.round((Date.now()-lastOk)/1000))} วินาทีก่อน`:'';
     const up=$('#uptime'), run=snap&&snap.session.running&&snap.session.created;
-    up.hidden=!run; if(run) up.textContent=`เปิดทีมมา ${dur(since(snap.session.created))}`;}
+    up.hidden=!run; if(run) up.textContent=`เปิดทีมมา ${dur(since(snap.session.created))}`;
+    renderMoods(); if(snap) renderRooms();}
   const w=app.clientWidth,h=app.clientHeight;
   ROOMS.forEach(r=>project(r.label,r.cx,1.3,r.top?r.z0+1.2:r.z1-1.2,w,h));
   ROLES.forEach(role=>{const a=AG[role];
-    if(!a.data||a.status==='absent'){a.label.style.display='none';return;}
+    if(!a.data||a.status==='absent'){a.label.style.display='none';a.bubble.style.display='none';return;}
+    if(a.shown&&a.mood) project(a.bubble,a.g.position.x,2.15,a.g.position.z,w,h,24); else a.bubble.style.display='none';
     if(a.shown) project(a.label,a.g.position.x,2.15,a.g.position.z,w,h);
     else project(a.label,a.desk.x,1.6,a.desk.z-.6,w,h); // offline → tag the empty desk
   });
