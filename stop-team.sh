@@ -14,6 +14,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"   # stop_dashboard
 STATE_FILE="$SCRIPT_DIR/.team-state.md"
 SESSION_OVERRIDE=""
 FORCE=0
@@ -198,6 +200,7 @@ command -v tmux >/dev/null || { echo "Error: tmux not found" >&2; exit 1; }
 
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   echo "Session '$SESSION' ไม่มีอยู่ — เก็บกวาด /tmp runtime files ที่ค้างอยู่"
+  [[ "$SESSION" == "dev-team" ]] && stop_dashboard
   cleanup_tmp
   exit 0
 fi
@@ -224,6 +227,7 @@ fi
 # ──────────────────────────────────────────────────────────────
 tmux kill-session -t "$SESSION"
 echo "✓ Session '$SESSION' killed."
+[[ "$SESSION" == "dev-team" ]] && stop_dashboard
 
 # ──────────────────────────────────────────────────────────────
 # Cleanup /tmp runtime files
