@@ -387,6 +387,11 @@ cd ~/agent-teams
 # เริ่ม session สำหรับ project ที่ระบุ
 ./start-team.sh pms
 
+# script จะถามว่าเปิดหน้าเว็บ Office Floor dashboard (dashboard/office-floor.html) ด้วยไหม [y/N]
+# ข้ามคำถามได้ด้วย flag
+./start-team.sh --dashboard       # เปิดเลย
+./start-team.sh --no-dashboard    # ไม่เปิด ไม่ถาม
+
 # จบ session (ถาม confirm)
 ./stop-team.sh
 

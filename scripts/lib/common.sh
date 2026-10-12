@@ -185,3 +185,36 @@ resolve_session() {
     echo "dev-team"
   fi
 }
+
+# ask_dashboard <mode> — ตัดสินว่าจะเปิด dashboard ไหม → echo "yes"/"no"
+# mode: "yes"/"no" (จาก --dashboard/--no-dashboard) ข้ามคำถาม; "" = ถาม (default No)
+# stdin ไม่ใช่ terminal (เช่นรันจาก script อื่น) → "no" โดยไม่ถาม
+ask_dashboard() {
+  local mode="$1" ans
+  if [[ -n "$mode" ]]; then echo "$mode"; return; fi
+  if [[ ! -t 0 ]]; then echo "no"; return; fi
+  printf "เปิดหน้าเว็บ Office Floor dashboard ด้วยไหม? [y/N] " >&2
+  read -r ans || ans=""
+  if [[ "$ans" == "y" || "$ans" == "Y" ]]; then echo "yes"; else echo "no"; fi
+}
+
+# open_dashboard — เปิด dashboard/office-floor.html ใน browser (macOS / Linux / WSL)
+# ไม่มีไฟล์หรือไม่มีคำสั่งเปิด browser → แจ้งเตือนแล้วไปต่อ (ไม่ทำให้ start-team ล้ม)
+open_dashboard() {
+  local file="$AGENT_TEAMS_DIR/dashboard/office-floor.html"
+  if [[ ! -f "$file" ]]; then
+    echo "⚠️  ไม่พบ $file — ข้ามการเปิด dashboard" >&2
+    return 0
+  fi
+  if command -v open >/dev/null 2>&1 && [[ "$(uname -s)" == "Darwin" ]]; then
+    open "$file"
+  elif command -v wslview >/dev/null 2>&1; then
+    wslview "$file"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$file" >/dev/null 2>&1 &
+  else
+    echo "⚠️  ไม่พบคำสั่งเปิด browser — เปิดเองที่: $file" >&2
+    return 0
+  fi
+  echo "→ เปิด dashboard: $file"
+}

@@ -1,0 +1,668 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Office AI 3D Floor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: full-bleed 3D floor, glass overlay cards pinned to edges (KPIs top, room panel + AI feed right, sprint bottom-left) */
+:root{
+  --bg:#e8ecf0; --panel:rgba(255,255,255,.86); --panel-solid:#ffffff; --fg:#16202b; --muted:#5d6978;
+  --line:#d6dce4; --accent:#2f5bea; --accent-soft:#e2e8fd; --ok:#17915c; --warn:#c27c0b; --crit:#cf3a3a;
+  --track:#e6eaf0; --shadow:0 6px 24px rgba(22,32,43,.08);
+  --font:"IBM Plex Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11151b; --panel:rgba(24,30,38,.86); --panel-solid:#1a2029; --fg:#e7ecf2; --muted:#93a0b0;
+  --line:#2c3541; --accent:#6f8fff; --accent-soft:#232d4a; --ok:#3cc488; --warn:#e6a23a; --crit:#ef6464;
+  --track:#2a323d; --shadow:0 6px 24px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151b; --panel:rgba(24,30,38,.86); --panel-solid:#1a2029; --fg:#e7ecf2; --muted:#93a0b0;
+  --line:#2c3541; --accent:#6f8fff; --accent-soft:#232d4a; --ok:#3cc488; --warn:#e6a23a; --crit:#ef6464;
+  --track:#2a323d; --shadow:0 6px 24px rgba(0,0,0,.35); color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden}
+#app{position:relative;height:100%;overflow:hidden}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#scene:active{cursor:grabbing}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* top */
+.top{position:absolute;left:0;right:342px;top:0;padding:12px 16px;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.top>*{pointer-events:auto}
+.bar{display:flex;align-items:center;gap:12px;padding:8px 12px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center;flex:none}
+.logo svg{width:18px;height:18px}
+.brand b{font-size:15px;font-weight:600;display:block;line-height:1.2}
+.brand small{font-size:12px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spacer{flex:1}
+.live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ok);font-weight:600;white-space:nowrap}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.kpis{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.kpis::-webkit-scrollbar,.chips::-webkit-scrollbar{display:none}
+.kpi{min-width:150px;flex:1 1 0;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.kpi span{font-size:12px;color:var(--muted)}
+.kpi strong{font-size:21px;font-weight:600;line-height:1.25}
+.kpi em{font-style:normal;font-size:11.5px;color:var(--muted)}
+.kpi em.up{color:var(--ok)}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.chip{display:flex;align-items:center;gap:6px;white-space:nowrap;padding:6px 11px;border-radius:999px;border:1px solid var(--line);
+  background:var(--panel);font-size:12.5px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+
+/* side */
+#side{position:absolute;top:12px;right:16px;bottom:16px;width:310px;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+#side>*{pointer-events:auto}
+#panel{padding:14px;overflow:auto;flex:0 1 auto;min-height:0}
+.ph{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+.ph h2{font-size:16px;font-weight:600;margin:0;line-height:1.3;text-wrap:balance}
+.ph p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.ph .x{margin-left:auto;border:1px solid var(--line);background:var(--panel-solid);border-radius:8px;width:28px;height:28px;cursor:pointer;flex:none;display:grid;place-items:center}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.status.busy{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.status.ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.occ{margin:10px 0 12px}
+.occ .row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px}
+.occ .row b{color:var(--fg);font-weight:600}
+.track{height:6px;border-radius:3px;background:var(--track);overflow:hidden}
+.track i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .4s}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.metric{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--panel-solid);min-width:0}
+.metric span{display:block;font-size:11.5px;color:var(--muted)}
+.metric b{display:block;font-size:16px;font-weight:600;margin-top:2px}
+.sec{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-weight:600}
+.people{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+.pp{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:var(--panel-solid);cursor:pointer;display:flex;align-items:center;gap:5px}
+.pp i{width:7px;height:7px;border-radius:50%}
+.agent{display:flex;gap:9px;padding:10px;border-radius:10px;background:var(--accent-soft);font-size:12.5px;line-height:1.5}
+.agent svg{flex:none;width:16px;height:16px;margin-top:2px;color:var(--accent)}
+.empty{font-size:12px;color:var(--muted);margin:0 0 12px}
+.ov{display:flex;flex-direction:column;gap:4px}
+.ovr{display:grid;grid-template-columns:10px 1fr 64px 40px;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;border:0;background:none;cursor:pointer;text-align:left;font-size:12.5px}
+.ovr:hover{background:var(--accent-soft)}
+.ovr .dot{width:8px;height:8px;border-radius:50%}
+.ovr .mono{font-size:11.5px;text-align:right;color:var(--muted)}
+
+.tabs{display:flex;gap:4px;padding:3px;border-radius:9px;background:var(--track);margin-bottom:10px}
+.tabs button{flex:1;border:0;background:none;padding:6px 8px;border-radius:7px;font-size:12.5px;cursor:pointer;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--panel-solid);color:var(--fg);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.role{display:grid;gap:5px;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}
+.role>span{font-weight:500}
+#feed{padding:12px 14px;flex:0 0 auto}
+#feed h3{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0 0 8px}
+#feed ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+#feed li{display:grid;grid-template-columns:44px 1fr;gap:6px;font-size:12px;line-height:1.45;animation:slide .35s ease-out}
+#feed li time{color:var(--muted);font-size:11px;padding-top:1px}
+#feed li b{color:var(--accent);font-weight:600}
+@keyframes slide{from{opacity:.2;transform:translateY(-4px)}}
+
+/* sprint */
+#sprint{position:absolute;left:16px;bottom:16px;width:min(560px,calc(100% - 380px));padding:12px 14px}
+.sh{display:flex;align-items:baseline;gap:8px;margin-bottom:10px;font-size:13px}
+.sh b{font-weight:600}.sh span{color:var(--muted);font-size:12px}
+.sh .mono{margin-left:auto;font-size:12px;color:var(--fg)}
+.stages{display:grid;grid-template-columns:repeat(5,1fr);position:relative}
+.stages:before{content:"";position:absolute;left:10%;right:10%;top:11px;height:2px;background:var(--track)}
+.stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.stage .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:var(--panel-solid);border:2px solid var(--line);font-family:var(--mono);font-weight:600}
+.stage.done .n{background:var(--accent);border-color:var(--accent);color:#fff}
+.stage.now .n{border-color:var(--accent);color:var(--accent)}
+.stage span{font-size:11.5px;color:var(--muted)}
+
+/* controls */
+#ctl{position:absolute;left:16px;top:50%;transform:translateY(-10%);display:flex;flex-direction:column;padding:4px;gap:2px}
+#ctl button{width:34px;height:34px;border:0;border-radius:8px;background:none;cursor:pointer;display:grid;place-items:center}
+#ctl button:hover{background:var(--accent-soft)}
+#ctl button[aria-pressed="true"]{background:var(--accent);color:#fff}
+#ctl svg{width:17px;height:17px}
+
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.rl{position:absolute;left:0;top:0;transform:translate(-50%,-100%);display:flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:3px 8px;border-radius:7px;background:var(--panel-solid);border:1px solid var(--line);font-size:11.5px;font-weight:500;box-shadow:var(--shadow);will-change:transform}
+.rl .mono{font-size:10.5px;color:var(--muted)}
+.rl.sel{border-color:var(--accent);color:var(--accent)}
+#ticker{display:none}
+#hint{position:absolute;right:342px;bottom:16px;font-size:11.5px;color:var(--muted);pointer-events:none;white-space:nowrap}
+
+@media (max-width:1100px){#sprint{display:none}}
+@media (max-width:760px){
+  .top{right:0;padding:10px 12px;gap:8px}
+  .bar{padding:7px 10px}
+  .kpi{min-width:128px;padding:8px 10px}
+  .kpi strong{font-size:18px}
+  #side{top:auto;left:12px;right:12px;bottom:58px;width:auto;max-height:46%}
+  #side.closed #panel{display:none}
+  #feed{display:none}
+  #panel{flex:1 1 auto}
+  #ticker{display:flex;position:absolute;left:12px;right:12px;bottom:12px;padding:9px 12px;font-size:12px;gap:8px;align-items:center;overflow:hidden}
+  #ticker span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  #ticker b{color:var(--accent);font-weight:600}
+  #ctl{left:auto;right:12px;top:auto;bottom:auto;transform:none;top:186px}
+  #hint{display:none}
+  .rl{font-size:10.5px;padding:2px 6px}
+}
+@media (prefers-reduced-motion:reduce){.live i,#feed li{animation:none}}
+</style>
+
+<div id="app">
+  <canvas id="scene" aria-label="แผนผังออฟฟิศ 3 มิติ หมุนและซูมได้"></canvas>
+  <div id="labels"></div>
+
+  <div class="top">
+    <div class="bar card">
+      <div class="brand">
+        <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>
+        <div style="min-width:0"><b>Office AI</b><small>Software House · สำนักงานชั้น 1</small></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="live"><i></i>Live</div>
+      <div class="mono" id="clock" style="font-size:13px">--:--:--</div>
+    </div>
+    <div class="kpis">
+      <div class="kpi card"><span>พนักงานเข้างาน</span><strong class="mono">30/33</strong><em>ลา 2 · WFH 1</em></div>
+      <div class="kpi card"><span>นั่งที่โต๊ะตอนนี้</span><strong class="mono" id="kDesk">0/30</strong><em id="kDeskSub">อัปเดตอัตโนมัติ</em></div>
+      <div class="kpi card"><span>ห้องประชุมใช้งาน</span><strong class="mono" id="kMeet">0/2</strong><em id="kMeetSub">ว่างทั้งหมด</em></div>
+      <div class="kpi card"><span>Sprint 24</span><strong class="mono" id="kSprint">0%</strong><em class="up">ปิด sprint 16 ต.ค.</em></div>
+    </div>
+    <div class="chips" id="chips" role="toolbar" aria-label="เลือกห้อง"></div>
+  </div>
+
+  <div id="side" class="closed">
+    <section id="panel" class="card" aria-live="polite"></section>
+    <section id="feed" class="card">
+      <h3><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent)"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></svg>AI Activity</h3>
+      <ul id="feedList"></ul>
+    </section>
+  </div>
+
+  <section id="sprint" class="card">
+    <div class="sh"><b>Release v2.4.0</b><span>Sprint 24 · งานทั้งหมด <span class="mono" id="sTotal">38</span></span><span class="mono" id="sPct">0%</span></div>
+    <div class="stages" id="stages"></div>
+  </section>
+
+  <div id="ctl" class="card">
+    <button id="zin" aria-label="ซูมเข้า" title="ซูมเข้า"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="zout" aria-label="ซูมออก" title="ซูมออก"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+    <button id="rot" aria-label="หมุนอัตโนมัติ" title="หมุนอัตโนมัติ" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button>
+    <button id="home" aria-label="มุมมองเริ่มต้น" title="มุมมองเริ่มต้น"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></button>
+  </div>
+
+  <div id="ticker" class="card"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--accent);flex:none"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4"/></svg><span id="tickerText">AI กำลังเริ่มทำงาน</span></div>
+  <div id="hint">ลากเพื่อหมุน · เลื่อนหรือบีบเพื่อซูม · คลิกห้องหรือคนเพื่อดูข้อมูล</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+const PI=Math.PI, $=s=>document.querySelector(s);
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const narrow=()=>innerWidth<=760;
+const rand=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const lin=(a,b,n)=>n===1?[(a+b)/2]:Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
+
+/* ---------- data ---------- */
+const DEPT={eng:0x3d63dd,qa:0xe0a030,design:0xd9628f,hr:0x3f9a6b,ceo:0x46505e,lobby:0x6f7f95,devops:0x7a5ad6,pmo:0xe0662f,ai:0x15a6bd};
+const hex=n=>'#'+n.toString(16).padStart(6,'0');
+const ROOMS=[
+ {id:'eng',name:'Engineering',th:'ทีมพัฒนา',x0:-18,x1:2,z0:-12,z1:0,door:-8,cols:5,rows:3,mx:2.2,dept:'eng'},
+ {id:'qa',name:'QA & Testing',th:'ทดสอบระบบ',x0:2,x1:10,z0:-12,z1:0,door:6,cols:2,rows:2,mx:2.2,dept:'qa'},
+ {id:'design',name:'UX/UI Design',th:'ทีมออกแบบ',x0:10,x1:20,z0:-12,z1:0,door:15,cols:3,rows:2,mx:2.2,dept:'design'},
+ {id:'lobby',name:'Reception',th:'ต้อนรับ & Pantry',x0:-18,x1:-10,z0:4,z1:12,door:-12.6,dept:'lobby'},
+ {id:'meetA',name:'Meeting A',th:'ห้องประชุมใหญ่',x0:-10,x1:-3,z0:4,z1:12,door:-6.5,dept:'eng'},
+ {id:'meetB',name:'Meeting B',th:'ห้องประชุมเล็ก',x0:-3,x1:3,z0:4,z1:12,door:0,dept:'eng'},
+ {id:'ceo',name:'CEO Office',th:'ห้องผู้บริหาร',x0:3,x1:9,z0:4,z1:12,door:6,cols:1,rows:1,mx:2,dept:'ceo'},
+ {id:'hr',name:'HR & Finance',th:'บุคคลและบัญชี',x0:9,x1:15,z0:4,z1:12,door:12,cols:2,rows:2,mx:1.5,dept:'hr'},
+ {id:'server',name:'Server Room',th:'DevOps & Security',x0:15,x1:20,z0:4,z1:12,door:17.5,dept:'devops'},
+ {id:'pmo',name:'PMO & Business',th:'PM · BA · Sales',x0:20,x1:30,z0:-12,z1:0,door:25,cols:3,rows:2,mx:2.2,dept:'pmo'},
+ {id:'ai',name:'AI Lab',th:'ทีมดูแล AI Agent',x0:20,x1:30,z0:4,z1:12,door:22.5,cols:2,rows:2,mx:1.8,dept:'ai'}
+];
+const ROOM={}; ROOMS.forEach(r=>{ROOM[r.id]=r; r.top=r.z1===0; r.front=r.top?r.z1-1:r.z0+1; r.cx=(r.x0+r.x1)/2; r.cz=(r.z0+r.z1)/2; r.seats=[];});
+const STAFF=[
+ ['ต้น','Tech Lead / Solution Architect','eng'],['เบียร์','Backend Developer','eng'],['มิ้นท์','Frontend Developer','eng'],['ปอนด์','Backend Developer','eng'],
+ ['แบงค์','Mobile Developer','eng'],['ฝน','Frontend Developer','eng'],['ภูมิ','Mobile Developer','eng'],['เจ','Full-stack Developer','eng'],
+ ['โบ๊ท','DevOps Engineer','eng','devops'],['กอล์ฟ','DevOps & Security (PDPA)','eng','devops'],['นัท','Data Engineer','eng'],
+ ['นุ่น','QA Lead','qa'],['ปลา','QA Engineer','qa'],['พีท','Automation QA','qa'],
+ ['ออม','UX Designer','design'],['ฟ้า','UI Designer','design'],['ไผ่','UI Designer','design'],['แพร','Product Designer','design'],
+ ['เมย์','HR Manager','hr'],['กิ๊ฟ','เจ้าหน้าที่บัญชี','hr'],['ตาล','ธุรการและจัดซื้อ','hr'],
+ ['คุณบอส','CEO','ceo'],['ข้าวหอม','Receptionist','lobby'],
+ ['วิน','Project Manager · AI Owner','pmo'],['แอน','Project Manager','pmo'],['ปาล์ม','Business Analyst','pmo'],
+ ['ไอซ์','Account Manager','pmo'],['บีม','Sales Executive','pmo'],
+ ['เคน','AI Engineer','ai'],['จูน','AI Engineer (Agent & Prompt)','ai']
+];
+const S={pr:7,builds:18,commits:64,bugs:12,crit:1,pass:96.4,designQ:5,figma:2,visitors:4,parcels:2,leave:2,invoices:3,cpu:38,mem:61,deploys:3,ceoMeet:3};
+const STAGES=[['Backlog',9],['กำลังพัฒนา',14],['Code review',7],['QA',5],['Deploy',3]];
+
+/* ---------- three setup ---------- */
+const canvas=$('#scene'), app=$('#app');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputEncoding=THREE.sRGBEncoding;
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(36,1,0.1,400);
+const controls=new THREE.OrbitControls(camera,canvas);
+controls.enableDamping=true; controls.dampingFactor=0.08; controls.maxPolarAngle=1.36; controls.minDistance=9; controls.maxDistance=110;
+controls.autoRotateSpeed=0.6;
+const DEF_T=new THREE.Vector3(6,0,0);
+function defaultPos(){const d=narrow()?112:68; return new THREE.Vector3(0.38,0.72,0.58).normalize().multiplyScalar(d).add(DEF_T);}
+camera.position.copy(defaultPos()); controls.target.copy(DEF_T);
+
+const hemi=new THREE.HemisphereLight(0xffffff,0x8899aa,0.8); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(22,32,18); sun.castShadow=true;
+sun.target.position.set(6,0,0); scene.add(sun.target);
+Object.assign(sun.shadow.camera,{left:-38,right:38,top:28,bottom:-28,near:1,far:100}); sun.shadow.mapSize.set(2048,2048); sun.shadow.bias=-0.0006; sun.shadow.radius=3;
+scene.add(sun);
+
+const std=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85,metalness:0},o));
+const M={ground:std(0),corridor:std(0),wall:std(0),wallTall:std(0),desk:std(0),leg:std(0),monitor:std(0x1d2128,{roughness:.5}),
+ chair:std(0),wood:std(0xb98b5e),sofa:std(0),rack:std(0x232831,{roughness:.6}),leaf:std(0x4f9a63),leafDark:std(0x3f8556),trunk:std(0x8a6242),
+ pot:std(0),board:std(0),skin:std(0xe6b896),skin2:std(0xc98f68),pants:std(0x2e3542),pants2:std(0x4a4f5a),
+ screenOff:std(0x0e1116,{roughness:.4}),ledG:new THREE.MeshBasicMaterial({color:0x35e08a}),ledA:new THREE.MeshBasicMaterial({color:0xf0b03c}),
+ ring:new THREE.MeshBasicMaterial({color:0x2f5bea,transparent:true,opacity:.9,side:THREE.DoubleSide}),
+ hi:new THREE.MeshBasicMaterial({color:0x2f5bea,transparent:true,opacity:.12,depthWrite:false})};
+const SCREENS=[0x7aa2ff,0x5fd1b5,0xa98bff,0xffc46b].map(c=>std(0x10131a,{emissive:c,emissiveIntensity:.75,roughness:.3}));
+const HAIR=[0x1b1714,0x2f2219,0x4a3020,0x111111,0x6b4a2e].map(c=>std(c));
+const SHIRT={}; Object.keys(DEPT).forEach(k=>SHIRT[k]=std(DEPT[k]));
+const floorMat={}; ROOMS.forEach(r=>floorMat[r.id]=std(0));
+const STICKY=[0xffd166,0x8ecae6,0xf4a3b5,0xa7e3a0,0xffb26b].map(c=>std(c));
+
+const PAL={
+ light:{bg:0xe8ecf0,ground:0xdde3e8,corridor:0xf6f7f8,wall:0xfbfcfd,wallTall:0xf1f3f6,desk:0xf4f3ef,leg:0x9aa3ad,chair:0x2b2f36,sofa:0x5d6b84,pot:0xe9e4dc,board:0xffffff,
+  floors:{eng:0xe4eaf6,qa:0xf6eedc,design:0xf5e6ec,lobby:0xe7ebf0,meetA:0xeae7f6,meetB:0xeae7f6,ceo:0xefe7dd,hr:0xe3efe1,server:0xdfe3e9,pmo:0xf7e7de,ai:0xdff1f4},hemi:.85,sun:.85,accent:0x2f5bea},
+ dark:{bg:0x11151b,ground:0x151a21,corridor:0x252c35,wall:0x46505e,wallTall:0x3a434f,desk:0x5a636f,leg:0x2c333c,chair:0x0f1216,sofa:0x3c4a63,pot:0x5b5650,board:0x8d96a3,
+  floors:{eng:0x1f2838,qa:0x2e281b,design:0x2f2129,lobby:0x20262e,meetA:0x252236,meetB:0x252236,ceo:0x2d261e,hr:0x1d2b1e,server:0x1b2028,pmo:0x302219,ai:0x16292d},hemi:.55,sun:.7,accent:0x6f8fff}
+};
+function isDark(){const t=document.documentElement.getAttribute('data-theme'); if(t==='dark')return true; if(t==='light')return false; return matchMedia('(prefers-color-scheme: dark)').matches;}
+function applyTheme(){
+  const p=PAL[isDark()?'dark':'light'];
+  scene.background=new THREE.Color(p.bg); scene.fog=new THREE.Fog(p.bg,90,190);
+  ['ground','corridor','wall','wallTall','desk','leg','chair','sofa','pot','board'].forEach(k=>M[k].color.setHex(p[k]));
+  ROOMS.forEach(r=>floorMat[r.id].color.setHex(p.floors[r.id]));
+  hemi.intensity=p.hemi; sun.intensity=p.sun; M.ring.color.setHex(p.accent); M.hi.color.setHex(p.accent);
+}
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+const geoCache={};
+function G(key,fn){return geoCache[key]||(geoCache[key]=fn());}
+function mesh(geo,mat,x,y,z,parent){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;(parent||scene).add(m);return m;}
+function box(w,h,d,mat,x,y,z,parent){return mesh(G(`b${w},${h},${d}`,()=>new THREE.BoxGeometry(w,h,d)),mat,x,y,z,parent);}
+
+/* ground + floors */
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),M.ground); ground.rotation.x=-PI/2; ground.receiveShadow=true; scene.add(ground);
+const corridor=new THREE.Mesh(new THREE.PlaneGeometry(48,4),M.corridor); corridor.rotation.x=-PI/2; corridor.position.set(6,0.01,2); corridor.receiveShadow=true; scene.add(corridor);
+box(1.6,0.02,2.4,M.sofa,-18.9,0.012,2);
+const floors=[];
+ROOMS.forEach(r=>{const f=new THREE.Mesh(new THREE.PlaneGeometry(r.x1-r.x0,r.z1-r.z0),floorMat[r.id]);
+  f.rotation.x=-PI/2; f.position.set(r.cx,0.012,r.cz); f.receiveShadow=true; f.userData.room=r.id; scene.add(f); floors.push(f);
+  const h=new THREE.Mesh(f.geometry,M.hi); h.rotation.x=-PI/2; h.position.set(r.cx,0.02,r.cz); h.visible=false; scene.add(h); r.hi=h;});
+
+/* walls */
+const segs=new Map();
+function seg(ax,az,bx,bz){if(ax>bx||az>bz){[ax,bx]=[bx,ax];[az,bz]=[bz,az];} segs.set(`${ax},${az},${bx},${bz}`,[ax,az,bx,bz]);}
+ROOMS.forEach(r=>{
+  const dz=r.top?r.z1:r.z0, bz=r.top?r.z0:r.z1;
+  seg(r.x0,bz,r.x1,bz); seg(r.x0,r.z0,r.x0,r.z1); seg(r.x1,r.z0,r.x1,r.z1);
+  seg(r.x0,dz,r.door-0.95,dz); seg(r.door+0.95,dz,r.x1,dz);
+});
+seg(30,0,30,4);
+segs.forEach(([ax,az,bx,bz])=>{
+  const tall=(az===-12&&bz===-12)||(ax===-18&&bx===-18);
+  const H=tall?2.6:1.05, mat=tall?M.wallTall:M.wall, L=Math.hypot(bx-ax,bz-az);
+  if(az===bz) box(L+0.16,H,0.16,mat,(ax+bx)/2,H/2,az); else box(0.16,H,L+0.16,mat,ax,H/2,(az+bz)/2);
+});
+
+/* furniture */
+function chair(x,z,face){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=face;scene.add(g);
+  mesh(G('cseat',()=>new THREE.BoxGeometry(.52,.08,.5)),M.chair,0,.46,0,g);
+  mesh(G('cback',()=>new THREE.BoxGeometry(.5,.5,.07)),M.chair,0,.76,-.25,g);
+  mesh(G('cstem',()=>new THREE.CylinderGeometry(.035,.035,.42,8)),M.leg,0,.21,0,g);
+  mesh(G('cbase',()=>new THREE.CylinderGeometry(.26,.26,.04,12)),M.leg,0,.03,0,g);}
+function plant(x,z,s=1){mesh(G('pot',()=>new THREE.CylinderGeometry(.24,.19,.42,12)),M.pot,x,.21,z).scale.setScalar(s);
+  const l=mesh(G('pleaf',()=>new THREE.IcosahedronGeometry(.42,1)),M.leaf,x,.72*s,z);l.scale.set(s,s*1.25,s);}
+const deskSlots={};
+function desk(r,x,z){
+  box(1.5,.06,.74,M.desk,x,.74,z); box(.05,.7,.68,M.leg,x-.7,.36,z); box(.05,.7,.68,M.leg,x+.7,.36,z);
+  box(.06,.18,.06,M.monitor,x,.86,z-.2); box(.64,.4,.04,M.monitor,x,1.1,z-.22);
+  const scr=mesh(G('scr',()=>new THREE.PlaneGeometry(.58,.34)),M.screenOff,x,1.1,z-.197);
+  box(.42,.02,.14,M.leg,x,.78,z+.05);
+  chair(x,z+.72,PI);
+  const sz=z+.64, off=1.1, approach=[{x:x+off,z:r.front},{x:x+off,z:sz}];
+  const d={kind:'desk',room:r.id,x,z:sz,rot:PI,sit:true,approach,screen:scr};
+  d.visit={kind:'visit',room:r.id,x:x+.82,z:sz,rot:-PI/2,sit:false,approach,desk:d};
+  (deskSlots[r.id]=deskSlots[r.id]||[]).push(d);
+}
+ROOMS.filter(r=>r.cols).forEach(r=>{
+  const xs=lin(r.x0+r.mx,r.x1-r.mx-.4,r.cols), zs=r.top?lin(r.z0+2,r.z1-2.9,r.rows):lin(r.z0+2.3,r.z1-2.2,r.rows);
+  zs.forEach(z=>xs.forEach(x=>desk(r,x,z)));
+});
+// engineering whiteboard + design moodboard on tall back wall
+box(5.2,1.4,.04,M.board,-8,1.6,-11.88);
+for(let i=0;i<14;i++) box(.32,.32,.02,STICKY[i%5],-10.2+(i%7)*.72,1.95-Math.floor(i/7)*.62+((i*37)%5)*.02,-11.85);
+box(3.6,1.3,.04,M.board,15,1.6,-11.88);
+for(let i=0;i<6;i++) box(1,.55,.02,STICKY[(i+2)%5],13.75+(i%3)*1.25,1.9-Math.floor(i/3)*.65,-11.85);
+// QA dashboard screen
+box(2.6,1.3,.06,M.monitor,6,1.7,-11.86);
+mesh(G('qascr',()=>new THREE.PlaneGeometry(2.4,1.12)),SCREENS[1],6,1.7,-11.82);
+// reception
+box(3.2,1,.7,M.wood,-15,.5,6.4); box(3.4,.06,.9,M.desk,-15,1.03,6.4);
+chair(-15,7.3,PI);
+box(2.4,.42,.9,M.sofa,-16.3,.21,11.2); box(2.4,.5,.2,M.sofa,-16.3,.66,11.6);
+box(.7,1.1,.55,M.monitor,-11,.55,11.45); box(1.6,.85,.6,M.desk,-11.9,.42,11.45);
+box(.05,1.2,2.2,M.monitor,-17.9,1.6,8.4); mesh(G('lobtv',()=>new THREE.PlaneGeometry(2.05,1.05)),SCREENS[0],-17.86,1.6,8.4).rotation.y=PI/2;
+plant(-17.3,4.8,1.1); plant(-10.7,4.8);
+// meeting rooms
+function meeting(r,w){const cx=r.cx, cz=8.2; box(w,.06,1.5,M.wood,cx,.74,cz); box(w-.6,.7,.12,M.leg,cx,.36,cz);
+  const xs=lin(cx-w/2+.55,cx+w/2-.55,Math.round(w/1.15));
+  xs.forEach(x=>{chair(x,cz-1.15,0); r.seats.push({kind:'meet',room:r.id,x,z:cz-1.05,rot:0,sit:true,approach:[{x,z:r.front}]});});
+  const ex=cx+w/2+.75;
+  xs.forEach(x=>{chair(x,cz+1.15,PI); r.seats.push({kind:'meet',room:r.id,x,z:cz+1.05,rot:PI,sit:true,approach:[{x:ex,z:r.front},{x:ex,z:cz+1.75},{x,z:cz+1.75}]});});
+  box(.12,.9,.12,M.leg,cx,.45,11.55); box(1.9,1.05,.06,M.monitor,cx,1.4,11.55);
+  mesh(G('mtv',()=>new THREE.PlaneGeometry(1.75,.9)),SCREENS[2],cx,1.4,11.515).rotation.y=PI;
+  plant(r.x0+.6,11.3,.9);}
+meeting(ROOM.meetA,4.3); meeting(ROOM.meetB,3.2);
+// ceo
+box(2.2,.42,.8,M.sofa,6,.21,11.3); box(2.2,.5,.2,M.sofa,6,.66,11.65); plant(8.3,11.3,1.1); plant(3.6,4.7,.9);
+// hr
+box(.5,1.6,1.6,M.desk,14.6,.8,10.6); plant(9.6,11.3);
+// server room
+const leds=[];
+[[16.1,7.3],[17.5,7.3],[18.9,7.3],[16.1,9.9],[17.5,9.9],[18.9,9.9]].forEach(([x,z])=>{
+  box(1.05,2.1,.85,M.rack,x,1.05,z);
+  for(let i=0;i<7;i++){const l=mesh(G('led',()=>new THREE.PlaneGeometry(.07,.04)),M.ledG,x-.38+(i%2)*.12,.35+i*.24,z-.428);l.rotation.y=PI;l.castShadow=false;leds.push(l);}
+});
+const SERVER_SPOTS=[16.1,17.5,18.9].map(x=>({kind:'server',room:'server',x,z:6.2,rot:0,sit:false,approach:[{x,z:ROOM.server.front}]}));
+const COFFEE=[-12.2,-11.3].map(x=>({kind:'coffee',room:'lobby',x,z:10.5,rot:0,sit:false,approach:[{x,z:ROOM.lobby.front}]}));
+const SOFA=[-16.9,-15.8].map(x=>({kind:'sofa',room:'lobby',x,z:10.95,rot:PI,sit:true,approach:[{x:-12.9,z:5},{x:-12.9,z:9.6},{x,z:9.6}]}));
+const RECEPTION={kind:'reception',room:'lobby',x:-15,z:7.2,rot:PI,sit:true,approach:[{x:-12.9,z:5},{x:-12.9,z:7.2}]};
+const CEO_SOFA=[5.4,6.6].map(x=>({kind:'sofa',room:'ceo',x,z:11.05,rot:PI,sit:true,approach:[{x:4,z:5},{x:4,z:9.8},{x,z:9.8}]}));
+// PMO portfolio board + AI Lab agent hub
+box(6.4,1.4,.04,M.board,25,1.6,-11.88);
+[0,1,2,3].forEach(c=>{for(let k=0;k<3-(c%2);k++) box(.5,.3,.02,STICKY[c],22.4+c*1.7,2.0-k*.42,-11.85);});
+box(1.2,.5,1.2,M.monitor,24.8,.25,10.4);
+const hubMat=std(0x0b2a30,{emissive:0x22c7e0,emissiveIntensity:1.1,roughness:.3});
+const hub=mesh(new THREE.IcosahedronGeometry(.48,0),hubMat,24.8,1.25,10.4);
+const hubRing=mesh(new THREE.TorusGeometry(.78,.03,8,48),hubMat,24.8,1.25,10.4); hubRing.rotation.x=PI/2.4;
+plant(29.3,4.8,1); plant(20.7,11.3,.9); plant(29.3,-.8,1);
+// trees outside
+[[-22,-9],[-22.5,-1],[-22,9],[34,-8],[34.5,-1],[34,9],[-11,-15.5],[1,-16],[13,-15.5],[25,-16],[-12,15.5],[0,16],[12,15.5],[24,15.5],[31,15]].forEach(([x,z],i)=>{
+  const s=.85+((i*7)%5)*.08; mesh(G('trunk',()=>new THREE.CylinderGeometry(.14,.18,1.6,8)),M.trunk,x,.8*s,z).scale.setScalar(s);
+  const f=mesh(G('fol',()=>new THREE.SphereGeometry(1.1,16,12)),i%2?M.leaf:M.leafDark,x,2.4*s,z); f.scale.set(s,s*1.35,s);});
+
+/* ---------- people ---------- */
+const people=[], pickables=[];
+const pGeo={leg:new THREE.BoxGeometry(.14,.7,.15),torso:new THREE.CylinderGeometry(.2,.24,.72,12),head:new THREE.SphereGeometry(.19,16,12),
+  hair:new THREE.SphereGeometry(.205,16,10,0,PI*2,0,PI*.5),arm:new THREE.BoxGeometry(.09,.56,.1)};
+function makePerson(st,i){
+  const [name,role,dept,sub]=st, g=new THREE.Group(); scene.add(g);
+  const shirt=SHIRT[sub||dept], pants=i%3?M.pants:M.pants2, skin=i%4===1?M.skin2:M.skin;
+  const limb=(geo,mat,x,y,oy)=>{const p=new THREE.Group();p.position.set(x,y,0);g.add(p);const m=mesh(geo,mat,0,oy,0,p);return p;};
+  const legL=limb(pGeo.leg,pants,-.1,.7,-.35), legR=limb(pGeo.leg,pants,.1,.7,-.35);
+  const armL=limb(pGeo.arm,shirt,-.29,1.34,-.27), armR=limb(pGeo.arm,shirt,.29,1.34,-.27);
+  mesh(pGeo.torso,shirt,0,1.06,0,g); mesh(pGeo.head,skin,0,1.6,0,g); mesh(pGeo.hair,HAIR[i%HAIR.length],0,1.63,-.01,g);
+  const p={i,name,role,dept,sub,g,legL,legR,armL,armR,state:'rest',timer:rand(2,22),path:[],phase:Math.random()*6,speed:rand(1.5,1.9),activity:'นั่งทำงานที่โต๊ะ',roomNow:null};
+  g.traverse(o=>{if(o.isMesh){o.userData.pid=i;pickables.push(o);}});
+  people.push(p); return p;
+}
+const used={};
+STAFF.forEach((st,i)=>{
+  const p=makePerson(st,i);
+  if(st[2]==='lobby') p.home=RECEPTION; else {const r=st[2]; used[r]=(used[r]||0); p.home=deskSlots[r][used[r]++]; p.home.owner=p; p.home.screen.material=SCREENS[i%4];}
+  p.cur=p.home; p.home.occ=p; place(p,p.home); pose(p,true);
+});
+function place(p,t){p.g.position.set(t.x,0,t.z); p.g.rotation.y=t.rot;}
+function pose(p,sit){p.sitting=sit; p.g.position.y=sit?-.24:0; const a=sit?-PI/2:0; p.legL.rotation.x=p.legR.rotation.x=a; p.armL.rotation.x=p.armR.rotation.x=sit?-.95:0;}
+const ring=new THREE.Mesh(new THREE.RingGeometry(.38,.5,36),M.ring); ring.rotation.x=-PI/2; ring.visible=false; scene.add(ring);
+
+function roomAt(x,z){for(const r of ROOMS) if(x>r.x0&&x<r.x1&&z>r.z0&&z<r.z1) return r.id; return null;}
+function goTo(p,t,activity,arrive){
+  const A=p.cur; if(A&&A.occ===p) A.occ=null; t.occ=p;
+  const path=[]; if(A) path.push(...[...A.approach].reverse());
+  if(!A||A.room!==t.room){const ra=ROOM[A.room], rb=ROOM[t.room];
+    path.push({x:ra.door,z:ra.front},{x:ra.door,z:2},{x:rb.door,z:2},{x:rb.door,z:rb.front});}
+  path.push(...t.approach,{x:t.x,z:t.z});
+  p.path=path; p.cur=t; p.state='walk'; p.activity=activity; p.arrive=arrive; pose(p,false);
+}
+function stayTime(t){return {desk:rand(12,30),meet:rand(16,30),coffee:rand(5,9),visit:rand(6,11),server:rand(7,13),sofa:rand(8,15),reception:rand(40,80)}[t.kind];}
+function free(list){const f=list.filter(s=>!s.occ);return f.length?pick(f):null;}
+function decide(p){
+  if(p.cur!==p.home){goTo(p,p.home,p.home.kind==='reception'?'กลับไปที่เคาน์เตอร์':'เดินกลับโต๊ะ',p.home.kind==='reception'?'ประจำเคาน์เตอร์ต้อนรับ':'นั่งทำงานที่โต๊ะ');return;}
+  const r=Math.random();
+  if(p.dept==='lobby'){ if(r<.35){const c=free(COFFEE); if(c){goTo(p,c,'ไปชงกาแฟ','พักดื่มกาแฟ');return;}} p.timer=stayTime(p.cur);return;}
+  if(p.dept==='ceo'){ const s=free(CEO_SOFA); if(r<.4&&s){goTo(p,s,'ย้ายไปโซฟา','อ่านรายงานจาก Report Agent');return;} if(r<.7){return toMeeting(p);} p.timer=stayTime(p.cur);return;}
+  if((p.sub==='devops'&&r<.3)||(p.dept==='ai'&&r<.2)){const s=free(SERVER_SPOTS); if(s){goTo(p,s,'เดินไป Server Room',p.dept==='ai'?'ตรวจ log ของ AI agent':'ตรวจเครื่องใน Server Room'); feed('DevOps Agent',`บันทึกการเข้าห้อง Server ของ${p.name}แล้ว`); return;}}
+  if(/Sales|Account/.test(p.role)&&r<.3){const s=free(SOFA); if(s){goTo(p,s,'ไปรับลูกค้าที่ Reception','คุยกับลูกค้าที่โซนรับแขก'); feed('Admin Agent',`ลงทะเบียนลูกค้าที่มาพบ${p.name}แล้ว`); return;}}
+  if(r<.32) return toMeeting(p);
+  if(r<.52){const c=free(COFFEE); if(c){goTo(p,c,'เดินไป Pantry','พักดื่มกาแฟ');return;}}
+  if(r<.72){const cross={pmo:['eng','design','qa','pmo'],ai:['eng','pmo','ai']}[p.dept]||[p.dept];
+    const mates=people.filter(q=>q!==p&&cross.includes(q.dept)&&q.cur===q.home&&q.state==='rest'&&q.home.visit&&!q.home.visit.occ);
+    if(mates.length){const q=pick(mates); goTo(p,q.home.visit,`เดินไปหา${q.name}`,`คุยงานกับ${q.name}`);return;}}
+  if(r<.8){const s=free(SOFA); if(s){goTo(p,s,'เดินไปโซนรับแขก','พักที่โซฟา');return;}}
+  p.timer=stayTime(p.cur);
+}
+function toMeeting(p){
+  const busy=[ROOM.meetA,ROOM.meetB].filter(m=>m.seats.some(s=>s.occ)&&m.seats.some(s=>!s.occ));
+  const m=busy.length&&Math.random()<.75?pick(busy):pick([ROOM.meetA,ROOM.meetB]);
+  const s=free(m.seats); if(!s){p.timer=stayTime(p.cur);return;}
+  if(!m.seats.some(x=>x.occ)) feed('Admin Agent',`${p.name}เริ่มใช้ ${m.name} · อัปเดตสถานะห้องในปฏิทินแล้ว`);
+  goTo(p,s,`เดินไป ${m.name}`,`ประชุมใน ${m.name}`);
+}
+function angLerp(a,b,t){let d=((b-a+PI)%(2*PI))-PI; if(d<-PI)d+=2*PI; return a+d*t;}
+function updatePerson(p,dt){
+  if(p.state==='walk'){
+    const t=p.path[0]; if(!t){arrive(p);return;}
+    const dx=t.x-p.g.position.x, dz=t.z-p.g.position.z, d=Math.hypot(dx,dz), step=p.speed*dt;
+    if(d<=step){p.g.position.x=t.x;p.g.position.z=t.z;p.path.shift();}
+    else{p.g.position.x+=dx/d*step; p.g.position.z+=dz/d*step; p.g.rotation.y=angLerp(p.g.rotation.y,Math.atan2(dx,dz),Math.min(1,dt*10));}
+    p.phase+=dt*p.speed*5.2; const s=Math.sin(p.phase);
+    p.legL.rotation.x=s*.55; p.legR.rotation.x=-s*.55; p.armL.rotation.x=-s*.45; p.armR.rotation.x=s*.45;
+    p.g.position.y=Math.abs(Math.cos(p.phase))*.03;
+  } else {
+    p.g.rotation.y=angLerp(p.g.rotation.y,p.cur.rot,Math.min(1,dt*6));
+    if(p.sitting&&p.cur.kind==='desk'){p.armL.rotation.x=-.95+Math.sin(performance.now()/180+p.i)*.05; p.armR.rotation.x=-.95+Math.cos(performance.now()/170+p.i)*.05;}
+    p.timer-=dt; if(p.timer<=0) decide(p);
+  }
+}
+function arrive(p){p.state='rest'; pose(p,p.cur.sit); p.activity=p.arrive||p.activity; p.timer=stayTime(p.cur);}
+
+/* ---------- UI ---------- */
+const labelsEl=$('#labels');
+ROOMS.forEach(r=>{const el=document.createElement('div');el.className='rl';el.innerHTML=`<span>${r.name}</span><span class="mono"></span>`;labelsEl.appendChild(el);r.label=el;r.labelCount=el.lastChild;
+  r.cap=r.id==='lobby'?6:r.id==='server'?3:r.seats.length?r.seats.length:(deskSlots[r.id]||[]).length+(r.id==='ceo'?2:0);});
+const chipsEl=$('#chips');
+function chipHTML(id,label,color){return `<button class="chip" data-room="${id}" aria-pressed="false">${color?`<i class="dot" style="background:${color}"></i>`:''}${label}</button>`;}
+chipsEl.innerHTML=chipHTML('all','ทั้งหมด')+ROOMS.map(r=>chipHTML(r.id,r.name,hex(DEPT[r.dept]))).join('');
+chipsEl.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;const id=b.dataset.room; if(id==='all'){select(null);flyHome();} else {select({room:id});flyRoom(ROOM[id]);}});
+
+let sel=null;
+function select(s){sel=s; ROOMS.forEach(r=>{r.hi.visible=!!(s&&s.room===r.id); r.label.classList.toggle('sel',!!(s&&s.room===r.id));});
+  chipsEl.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(s?c.dataset.room===s.room:c.dataset.room==='all')));
+  $('#side').classList.toggle('closed',!s); renderPanel();}
+
+const ICON_AI='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></svg>';
+const X='<button class="x" data-close aria-label="ปิด"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+const MEET_TITLE={meetA:'Sprint Planning · Sprint 25',meetB:'คุยงานลูกค้า · แอปจองคิว'};
+function metrics(id){
+  const occ=ROOM[id].seats.filter(s=>s.occ).length;
+  return ({
+   eng:[['PR รอรีวิว',S.pr],['Build วันนี้',`${S.builds} (ผ่าน ${S.builds-1})`],['Commit วันนี้',S.commits],['Test coverage','82.4%']],
+   qa:[['Bug ที่เปิดอยู่',S.bugs],['Critical',S.crit],['Test ผ่าน',S.pass.toFixed(1)+'%'],['รอทดสอบ',STAGES[3][1]+' งาน']],
+   design:[['งานในคิว',S.designQ],['รอรีวิวใน Figma',S.figma],['ส่งต่อ Dev แล้ว','11'],['Design system','v3.2']],
+   lobby:[['ผู้มาติดต่อวันนี้',S.visitors],['พัสดุรอรับ',S.parcels],['กาแฟวันนี้','41 แก้ว'],['ที่จอดว่าง','6/20']],
+   meetA:[['สถานะ',occ?'กำลังประชุม':'ว่าง'],['ผู้เข้าร่วม',`${occ}/${ROOM.meetA.seats.length}`],['จองถัดไป','15:30'],['จองวันนี้','5 ครั้ง']],
+   meetB:[['สถานะ',occ?'กำลังประชุม':'ว่าง'],['ผู้เข้าร่วม',`${occ}/${ROOM.meetB.seats.length}`],['จองถัดไป','16:00'],['จองวันนี้','3 ครั้ง']],
+   ceo:[['นัดหมายวันนี้',S.ceoMeet],['รออนุมัติ','4 รายการ'],['รายงานล่าสุด','08:00'],['ยอดขายเดือนนี้','฿2.4M']],
+   hr:[['คำขอลารออนุมัติ',S.leave],['ใบแจ้งหนี้ใกล้ครบกำหนด',S.invoices],['ใบขอซื้อ','2'],['เงินเดือนรอบถัดไป','25 ต.ค.']],
+   server:[['CPU',S.cpu+'%'],['หน่วยความจำ',S.mem+'%'],['Uptime 30 วัน','99.98%'],['Deploy วันนี้',S.deploys]],
+   pmo:[['โปรเจกต์ที่ดูแล','6'],['เสี่ยงล่าช้า','1'],['ลีดใหม่เดือนนี้','4'],['ใบเสนอราคารอตอบ','3']],
+   ai:[['Agent ที่ทำงานอยู่','7'],['งานที่ AI ทำวันนี้',String(120+feedN)],['รอคนอนุมัติ','2'],['ผ่านการตรวจ','97.6%']]
+  })[id];
+}
+const AI_NOTE={eng:'Project Agent เตือนผู้รีวิวทาง LINE เมื่อ PR ค้างเกิน 24 ชั่วโมง',qa:'QA Agent รัน regression test ทุกครั้งที่ merge และเปิด bug ให้อัตโนมัติ',
+ design:'Project Agent แจ้งทีมพัฒนาเมื่อแบบใน Figma พร้อมส่งต่อ',lobby:'Admin Agent ลงทะเบียนผู้มาติดต่อและแจ้งพนักงานที่นัดไว้',
+ meetA:'Admin Agent ปล่อยห้องคืนอัตโนมัติถ้าไม่มีคนเข้าภายใน 15 นาที',meetB:'Admin Agent ปล่อยห้องคืนอัตโนมัติถ้าไม่มีคนเข้าภายใน 15 นาที',
+ ceo:'Report Agent ส่งสรุปประจำวันให้ผู้บริหารเวลา 08:00 และ 18:00',hr:'HR Agent ส่งคำขอลาให้หัวหน้าอนุมัติ และเตือนใบแจ้งหนี้ก่อนครบกำหนด 3 วัน',
+ server:'DevOps Agent เฝ้าดู CPU และหน่วยความจำ ส่วนทีม DevOps & Security ดูแลสิทธิ์เข้าถึงข้อมูลตาม PDPA',
+ pmo:'Project Agent สรุปสถานะทุกโปรเจกต์ให้ PM ทุกเช้า และแจ้งเมื่องานเสี่ยงล่าช้า · PM ทำหน้าที่ AI Owner อนุมัติงานสำคัญของ agent',
+ ai:'Orchestrator แจกงานให้ agent 7 ตัว · AI Engineer ดูแล prompt การเชื่อมต่อ ERP/LINE และตรวจงานที่ต้องให้คนอนุมัติ'};
+function aiMsg(p){
+  if(/AI Owner/.test(p.role)) return `Orchestrator: มีงาน 2 รายการรอ${p.name}อนุมัติก่อน agent ลงมือ`;
+  if(/Project Manager/.test(p.role)) return `Project Agent: ส่งสรุปสถานะ 3 โปรเจกต์ที่${p.name}ดูแลแล้ว`;
+  if(/Business Analyst/.test(p.role)) return `Project Agent: แปลงบันทึกประชุมลูกค้าเป็น user story 6 เรื่องให้${p.name}ตรวจ`;
+  if(/Sales|Account/.test(p.role)) return `Sales Agent: ร่างใบเสนอราคาให้${p.name} 1 ฉบับ รอตรวจก่อนส่ง`;
+  if(p.dept==='ai') return `Orchestrator: ${p.name}ดูแล agent ${p.i%2?'HR และ Finance':'Project และ Report'} · ผลงานผ่านการตรวจ 97%`;
+  if(p.dept==='eng') return `Project Agent: ${p.name}มีงานใน Sprint 24 จำนวน ${3+p.i%4} งาน`;
+  if(p.dept==='qa') return `QA Agent: มอบหมายเคสทดสอบให้${p.name} ${5+p.i%6} เคส`;
+  return 'HR Agent: บันทึกเวลาเข้างาน 08:'+String(40+p.i%20).padStart(2,'0')+' อัตโนมัติ';
+}
+let ovTab='rooms';
+const ROLE_GROUPS=[
+ ['บริหารและธุรกิจ',r=>/CEO|Project Manager|Business Analyst|Sales|Account/.test(r)],
+ ['ทีมพัฒนาและออกแบบ',r=>/Tech Lead|Developer|Data Engineer|Designer/.test(r)],
+ ['คุณภาพและระบบ',r=>/QA|DevOps|Automation/.test(r)],
+ ['ทีม AI',r=>/AI Engineer/.test(r)],
+ ['สนับสนุน',r=>/HR|บัญชี|ธุรการ|Receptionist/.test(r)]];
+function teamHTML(){
+  return ROLE_GROUPS.map(([g,f])=>{const ps=people.filter(p=>f(p.role)); if(!ps.length)return'';
+    const roles={}; ps.forEach(p=>(roles[p.role]=roles[p.role]||[]).push(p));
+    return `<p class="sec" style="margin-top:10px">${g} · ${ps.length}</p>`+Object.entries(roles).map(([role,list])=>
+      `<div class="role"><span>${role}</span><div class="people" style="margin:0">${list.map(p=>`<button class="pp" data-person="${p.i}"><i style="background:${hex(DEPT[p.sub||p.dept])}"></i>${p.name}</button>`).join('')}</div></div>`).join('');}).join('');
+}
+function inRoom(id){return people.filter(p=>p.roomNow===id);}
+function renderPanel(){
+  const el=$('#panel');
+  if(!sel){
+    const tabs=`<div class="tabs" role="tablist"><button role="tab" data-tab="rooms" aria-selected="${ovTab==='rooms'}">ห้อง</button><button role="tab" data-tab="team" aria-selected="${ovTab==='team'}">ทีมและตำแหน่ง</button></div>`;
+    el.innerHTML=`<div class="ph"><div><h2>ภาพรวมออฟฟิศ</h2><p>${ovTab==='rooms'?'จำนวนคนในแต่ละห้องตอนนี้':`พนักงาน ${people.length} คน · ${new Set(people.map(p=>p.role)).size} ตำแหน่ง`}</p></div></div>${tabs}`+
+      (ovTab==='team'?teamHTML():`<div class="ov">${ROOMS.map(r=>{const n=inRoom(r.id).length;
+      return `<button class="ovr" data-room="${r.id}"><i class="dot" style="background:${hex(DEPT[r.dept])}"></i><span>${r.name}</span><span class="track"><i style="width:${Math.min(100,n/r.cap*100)}%"></i></span><span class="mono">${n}/${r.cap}</span></button>`;}).join('')}</div>`);
+    return;}
+  if(sel.person!=null){
+    const p=people[sel.person], r=p.roomNow?ROOM[p.roomNow]:null;
+    el.innerHTML=`<div class="ph"><div><h2>${p.name}</h2><p>${p.role} · ${ROOM[p.dept==='lobby'?'lobby':p.dept]?.name||''}</p></div>${X}</div>
+      <span class="status ${p.state==='walk'?'busy':'ok'}">${p.state==='walk'?'กำลังเดิน':'อยู่กับที่'}</span>
+      <div class="metrics" style="margin-top:12px"><div class="metric"><span>กิจกรรม</span><b style="font-size:13.5px">${p.activity}</b></div><div class="metric"><span>ตำแหน่งตอนนี้</span><b style="font-size:13.5px">${r?r.name:'ทางเดิน'}</b></div></div>
+      <div class="agent">${ICON_AI}<span>${aiMsg(p)}</span></div>`;
+    return;}
+  const r=ROOM[sel.room], ins=inRoom(r.id), n=ins.length, m=metrics(r.id), meet=r.id.startsWith('meet');
+  const busy=meet?r.seats.some(s=>s.occ):false;
+  el.innerHTML=`<div class="ph"><div><h2>${r.name}</h2><p>${r.th}</p></div>${X}</div>
+    ${meet?`<span class="status ${busy?'busy':'ok'}">${busy?MEET_TITLE[r.id]:'ว่าง พร้อมใช้งาน'}</span>`:`<span class="status">Live · จำลองข้อมูล</span>`}
+    <div class="occ"><div class="row"><span>คนในห้องตอนนี้</span><b class="mono">${n}/${r.cap}</b></div><div class="track"><i style="width:${Math.min(100,n/r.cap*100)}%"></i></div></div>
+    <div class="metrics">${m.map(([k,v])=>`<div class="metric"><span>${k}</span><b class="mono">${v}</b></div>`).join('')}</div>
+    <p class="sec">ในห้องตอนนี้</p>
+    ${n?`<div class="people">${ins.map(p=>`<button class="pp" data-person="${p.i}"><i style="background:${hex(DEPT[p.sub||p.dept])}"></i>${p.name}</button>`).join('')}</div>`:'<p class="empty">ยังไม่มีใครอยู่ในห้องนี้</p>'}
+    <div class="agent">${ICON_AI}<span>${AI_NOTE[r.id]}</span></div>`;
+}
+$('#panel').addEventListener('click',e=>{
+  if(e.target.closest('[data-close]')){select(null);return;}
+  const tb=e.target.closest('[data-tab]'); if(tb){ovTab=tb.dataset.tab;renderPanel();return;}
+  const rb=e.target.closest('[data-room]'); if(rb){select({room:rb.dataset.room});flyRoom(ROOM[rb.dataset.room]);return;}
+  const pb=e.target.closest('[data-person]'); if(pb){select({person:+pb.dataset.person});}
+});
+
+/* feed */
+const feedList=$('#feedList'); let feedN=0;
+function nowStr(sec){return new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:sec?'2-digit':undefined,hour12:false,timeZone:'Asia/Bangkok'});}
+function feed(agent,msg){
+  const li=document.createElement('li'); li.innerHTML=`<time class="mono">${nowStr()}</time><span><b>${agent}</b> ${msg}</span>`;
+  feedList.prepend(li); while(feedList.children.length>(innerHeight<820?4:6)) feedList.lastChild.remove();
+  $('#tickerText').innerHTML=`<b>${agent}</b> ${msg}`; feedN++;
+}
+const TEMPLATES=[
+ ()=>{const p=pick(people.filter(q=>q.dept==='eng'));S.pr=Math.max(2,S.pr+(Math.random()<.5?1:-1));return['Project Agent',`เตือน${p.name}ทาง LINE: PR #${480+Math.floor(Math.random()*40)} รอรีวิวเกิน 24 ชม.`];},
+ ()=>{S.builds++;S.commits+=3;return['DevOps Agent',`Build #${1200+S.builds} ผ่าน · deploy ขึ้น staging สำเร็จ`];},
+ ()=>{const a=410+Math.floor(Math.random()*8);S.pass=+(a/418*100).toFixed(1);return['QA Agent',`Regression test ผ่าน ${a}/418 เคส`];},
+ ()=>{const p=pick(people.filter(q=>q.dept!=='ceo'));return['HR Agent',`ส่งคำขอลาของ${p.name}ให้หัวหน้าอนุมัติแล้ว`];},
+ ()=>['Finance Agent',`ใบแจ้งหนี้ AWS ครบกำหนดใน 3 วัน · ส่งเรื่องให้ฝ่ายบัญชีแล้ว`],
+ ()=>{S.visitors++;return['Admin Agent',`ลงทะเบียนผู้มาติดต่อ ${S.visitors} · แจ้งคุณบอสทาง LINE แล้ว`];},
+ ()=>{S.cpu=Math.round(rand(30,72));return['DevOps Agent',`CPU เฉลี่ย ${S.cpu}% · ทุกบริการปกติ`];},
+ ()=>{const m=[ROOM.meetA,ROOM.meetB].find(r=>!r.seats.some(s=>s.occ));return m?['Admin Agent',`${m.name} ไม่มีคนใช้เกิน 15 นาที · ปล่อยห้องคืนแล้ว`]:['Report Agent','รวบรวมข้อมูลรายงานประจำวันเสร็จ 80%'];},
+ ()=>{const p=pick(people.filter(q=>q.dept==='design'));S.figma=Math.max(0,S.figma+(Math.random()<.5?1:-1));return['Project Agent',`แบบหน้า Checkout ของ${p.name}พร้อมแล้ว · แจ้งทีมพัฒนาแล้ว`];}
+];
+function stagesRender(){
+  const total=STAGES.reduce((a,s)=>a+s[1],0), done=STAGES[2][1]*.4+STAGES[3][1]*.7+STAGES[4][1];
+  const pct=Math.round(done/total*100);
+  $('#stages').innerHTML=STAGES.map((s,i)=>`<div class="stage ${i<3?'done':i===3?'now':''}"><span class="n">${s[1]}</span><span>${s[0]}</span></div>`).join('');
+  $('#sPct').textContent=pct+'%'; $('#kSprint').textContent=pct+'%'; $('#sTotal').textContent=total;
+}
+function sprintTick(){
+  const i=[0,1,2,3].filter(k=>STAGES[k][1]>0&&(k>0||Math.random()<.4)); if(!i.length)return;
+  const k=pick(i); STAGES[k][1]--; STAGES[k+1][1]++; stagesRender();
+  feed('Project Agent',`ย้าย TASK-${1100+Math.floor(Math.random()*120)} จาก ${STAGES[k][0]} ไป ${STAGES[k+1][0]}`);
+}
+stagesRender();
+feed('Report Agent','ส่งสรุปประจำวันให้คุณบอสแล้ว');
+feed('HR Agent','บันทึกเวลาเข้างาน 23 คน · ลา 2 · WFH 1');
+feed('Project Agent','เปิด Sprint 24 board · งานทั้งหมด 38');
+
+/* camera moves */
+let fly=null;
+function flyTo(target,pos){if(reduceMotion){controls.target.copy(target);camera.position.copy(pos);return;}
+  fly={t:0,ft:controls.target.clone(),tt:target,fp:camera.position.clone(),tp:pos};}
+function flyRoom(r){const t=new THREE.Vector3(r.cx,0,r.cz), dir=camera.position.clone().sub(controls.target).normalize();
+  const d=Math.max(r.x1-r.x0,r.z1-r.z0)*(narrow()?2.6:1.75)+8; flyTo(t,t.clone().add(dir.multiplyScalar(d)));}
+function flyHome(){flyTo(DEF_T.clone(),defaultPos());}
+function zoom(f){const off=camera.position.clone().sub(controls.target); const d=THREE.MathUtils.clamp(off.length()*f,controls.minDistance,controls.maxDistance);
+  flyTo(controls.target.clone(),controls.target.clone().add(off.setLength(d)));}
+$('#zin').onclick=()=>zoom(.72); $('#zout').onclick=()=>zoom(1.38); $('#home').onclick=()=>{select(null);flyHome();};
+$('#rot').onclick=e=>{controls.autoRotate=!controls.autoRotate;e.currentTarget.setAttribute('aria-pressed',String(controls.autoRotate));};
+
+/* picking */
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(); let down=null;
+canvas.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+canvas.addEventListener('pointerup',e=>{
+  if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return; down=null;
+  const rc=canvas.getBoundingClientRect(); ndc.set((e.clientX-rc.left)/rc.width*2-1,-(e.clientY-rc.top)/rc.height*2+1);
+  ray.setFromCamera(ndc,camera);
+  const hp=ray.intersectObjects(pickables,false)[0]; if(hp){select({person:hp.object.userData.pid});return;}
+  const hf=ray.intersectObjects(floors,false)[0]; if(hf){const id=hf.object.userData.room; if(!sel||sel.room!==id){select({room:id});} return;}
+  select(null);
+});
+
+/* loop */
+function resize(){const w=app.clientWidth,h=app.clientHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();}
+addEventListener('resize',resize); resize();
+const clock=new THREE.Clock(), v=new THREE.Vector3(); let acc=0, ledT=0, feedT=4, sprintT=11, roomT=0;
+function tick(){
+  const dt=Math.min(clock.getDelta(),.05);
+  people.forEach(p=>updatePerson(p,dt));
+  if(fly){fly.t=Math.min(1,fly.t+dt/.9); const k=1-Math.pow(1-fly.t,3); controls.target.lerpVectors(fly.ft,fly.tt,k); camera.position.lerpVectors(fly.fp,fly.tp,k); if(fly.t>=1)fly=null;}
+  controls.update();
+  ledT-=dt; if(ledT<=0){ledT=.25; leds.forEach(l=>{const r=Math.random(); l.visible=r>.12; l.material=r>.93?M.ledA:M.ledG;});}
+  hub.rotation.y+=dt*.8; hub.rotation.x+=dt*.3; hubRing.rotation.z+=dt*.6;
+  roomT-=dt; if(roomT<=0){roomT=.3; people.forEach(p=>p.roomNow=roomAt(p.g.position.x,p.g.position.z));
+    ROOMS.forEach(r=>r.labelCount.textContent=`${inRoom(r.id).length}/${r.cap}`);}
+  if(sel&&sel.person!=null){const p=people[sel.person]; ring.visible=true; ring.position.set(p.g.position.x,.03,p.g.position.z);} else ring.visible=false;
+  acc+=dt; if(acc>1){acc=0; updateKpis(); renderPanelSoft(); $('#clock').textContent=nowStr(true);}
+  feedT-=dt; if(feedT<=0){feedT=rand(5,8); const [a,m]=pick(TEMPLATES)(); feed(a,m);}
+  sprintT-=dt; if(sprintT<=0){sprintT=rand(12,18); sprintTick();}
+  const w=app.clientWidth,h=app.clientHeight;
+  ROOMS.forEach(r=>{v.set(r.cx,r.top?1.3:1.3,r.cz).project(camera); const vis=v.z<1&&v.x>-1.1&&v.x<1.1&&v.y>-1.1&&v.y<1.1;
+    r.label.style.display=vis?'flex':'none'; if(vis) r.label.style.transform=`translate(${(v.x+1)/2*w}px,${(1-v.y)/2*h}px) translate(-50%,-100%)`;});
+  renderer.render(scene,camera); requestAnimationFrame(tick);
+}
+let lastHTML='';
+function renderPanelSoft(){const el=$('#panel'); if(el.matches(':hover')&&sel===null) return; if(el.contains(document.activeElement)&&document.activeElement!==document.body) return; renderPanel();}
+function updateKpis(){
+  const atDesk=people.filter(p=>p.state==='rest'&&p.cur===p.home&&p.cur.kind==='desk').length, desks=Object.values(deskSlots).reduce((a,d)=>a+d.length,0);
+  $('#kDesk').textContent=`${atDesk}/${desks}`; const walking=people.filter(p=>p.state==='walk').length; $('#kDeskSub').textContent=`กำลังเดิน ${walking} คน`;
+  const used=[ROOM.meetA,ROOM.meetB].filter(r=>r.seats.some(s=>s.occ)); $('#kMeet').textContent=`${used.length}/2`;
+  $('#kMeetSub').textContent=used.length?used.map(r=>r.name).join(', '):'ว่างทั้งหมด';
+}
+renderPanel(); updateKpis(); $('#clock').textContent=nowStr(true);
+tick();
+})();
+</script>
+
+</body></html>
