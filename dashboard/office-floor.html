@@ -511,7 +511,7 @@ let snap=null, selected=null, lastOk=0, serverSkew=0, everOk=false;
 const feedItems=[];
 // Activity survives a page refresh: kept in localStorage per tmux session (name + created), so a new
 // team session starts a fresh log. `last` = what this viewer last saw, diffed on load to catch up.
-const FEED_KEY='officeFloor.activity.v1', FEED_MAX=50;
+const FEED_KEY='officeFloor.activity.v1', FEED_MAX=30; // latest 30 only (owner 2026-10-13)
 const sessionId=s=>`${s.session.name}:${s.session.created||''}`;
 function loadFeed(){try{return JSON.parse(localStorage.getItem(FEED_KEY))||null;}catch(e){return null;}}
 function saveFeed(s){
