@@ -509,11 +509,24 @@ function setStatus(a,data,first){
 /* ---------- live data ---------- */
 let snap=null, selected=null, lastOk=0, serverSkew=0, everOk=false;
 const feedItems=[];
+// Activity survives a page refresh: kept in localStorage per tmux session (name + created), so a new
+// team session starts a fresh log. `last` = what this viewer last saw, diffed on load to catch up.
+const FEED_KEY='officeFloor.activity.v1', FEED_MAX=50;
+const sessionId=s=>`${s.session.name}:${s.session.created||''}`;
+function loadFeed(){try{return JSON.parse(localStorage.getItem(FEED_KEY))||null;}catch(e){return null;}}
+function saveFeed(s){
+  try{localStorage.setItem(FEED_KEY,JSON.stringify({sid:sessionId(s),items:feedItems.map(f=>({...f,t:+f.t})),
+    last:{session:s.session,stage:s.stage,agents:s.agents.map(({role,status,task,blocker})=>({role,status,task,blocker}))}}));}catch(e){}
+}
+function renderFeed(){
+  if(!feedItems.length) return;
+  $('#feedList').innerHTML=feedItems.map(f=>`<li class="k-${f.kind||''}"><time class="mono">${f.t.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',hour12:false})}</time><span><b style="color:${hex(COLOR[f.role]||0x5d6978)}">${esc(LABEL[f.role]||f.role)}</b> ${esc(f.msg)}</span></li>`).join('');
+  const f=feedItems[0];
+  $('#tickerText').innerHTML=`<b style="color:${hex(COLOR[f.role]||0x5d6978)}">${esc(LABEL[f.role]||f.role)}</b> ${esc(f.msg)}`;
+}
 function feed(role,msg,kind){
-  feedItems.unshift({t:new Date(),role,msg,kind}); feedItems.length=Math.min(feedItems.length,50);
-  const ul=$('#feedList');
-  ul.innerHTML=feedItems.map(f=>`<li class="k-${f.kind||''}"><time class="mono">${f.t.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',hour12:false})}</time><span><b style="color:${hex(COLOR[f.role]||0x5d6978)}">${esc(LABEL[f.role]||f.role)}</b> ${esc(f.msg)}</span></li>`).join('');
-  $('#tickerText').innerHTML=`<b style="color:${hex(COLOR[role]||0x5d6978)}">${esc(LABEL[role]||role)}</b> ${esc(msg)}`;
+  feedItems.unshift({t:new Date(),role,msg,kind}); feedItems.length=Math.min(feedItems.length,FEED_MAX);
+  renderFeed();
 }
 function diff(prev,cur){
   if(prev.session.running!==cur.session.running){ // one line instead of 9 offline/online lines
@@ -539,6 +552,12 @@ function diff(prev,cur){
 function apply(s){
   const first=!snap;
   if(snap) diff(snap,s);
+  else{const saved=loadFeed(); // first poll after load: restore this session's activity, then catch up
+    if(saved&&saved.sid===sessionId(s)&&Array.isArray(saved.items)){
+      feedItems.push(...saved.items.slice(0,FEED_MAX).map(f=>({...f,t:new Date(f.t)}))); renderFeed();
+      if(saved.last&&Array.isArray(saved.last.agents)) diff(saved.last,s);
+    }}
+  saveFeed(s);
   snap=s; serverSkew=s.serverTime*1000-Date.now();
   s.agents.forEach(d=>{const a=AG[d.role]; if(a) setStatus(a,d,first);});
   $('#idle').hidden=!!s.session.running;
