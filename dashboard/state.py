@@ -119,7 +119,7 @@ def derive_status(row, pane, fs):
 class TmuxAdapter:
     """Real tmux/git access. Every failure → None (dashboard must never crash on tmux)."""
 
-    PANE_FMT = "#{pane_id}\t#{pane_current_command}\t#{pane_current_path}\t#{@workdir}\t#{@role}"
+    PANE_FMT = "#{pane_id}\t#{pane_current_command}\t#{pane_current_path}\t#{@workdir}\t#{@role}\t#{pane_pid}"
 
     def __init__(self, repo_dir, timeout=2):
         self.repo_dir = repo_dir
@@ -134,22 +134,42 @@ class TmuxAdapter:
         return r.stdout if r.returncode == 0 else None
 
     def session(self, name):
-        created = self._run(["tmux", "display-message", "-p", "-t", f"={name}", "#{session_created}"])
-        listing = self._run(["tmux", "list-panes", "-s", "-t", f"={name}", "-F", self.PANE_FMT])
-        if not created or listing is None:
+        # trailing ":" — tmux 3.6a prints "" for display-message -t =name (no colon)
+        target = f"={name}:"
+        created = self._run(["tmux", "display-message", "-p", "-t", target, "#{session_created}"])
+        listing = self._run(["tmux", "list-panes", "-s", "-t", target, "-F", self.PANE_FMT])
+        if not created or not created.strip() or listing is None:
             return None
-        panes = {}
+        panes, shell_pids = {}, {}
         for line in listing.splitlines():
             parts = line.split("\t")
-            if len(parts) != 5:
+            if len(parts) != 6:
                 continue
-            pid, cmd, path, workdir, role = parts
+            pid, cmd, path, workdir, role, pane_pid = parts
             panes[pid] = {"cmd": cmd, "path": path, "workdir": workdir, "role": role}
+            if cmd.lstrip("-") in SHELLS and pane_pid.isdigit():
+                shell_pids[pane_pid] = pid
+        # claude runs inside the pane shell's process group, so tmux reports the shell for live
+        # panes too — a non-shell child of the pane's shell is what tells live from dead.
+        for ppid, child in self._children(shell_pids).items():
+            panes[shell_pids[ppid]]["cmd"] = child
         try:
             created_ts = int(created.strip())
         except ValueError:
             return None
         return {"created": created_ts, "panes": panes}
+
+    def _children(self, parent_pids):
+        """→ {parent pid: name of its first non-shell child}. ps failure → {}."""
+        if not parent_pids:
+            return {}
+        out = {}
+        for line in (self._run(["ps", "-A", "-o", "ppid=,comm="]) or "").splitlines():
+            ppid, _, comm = line.strip().partition(" ")
+            comm = os.path.basename(comm.strip()).lstrip("-")
+            if ppid in parent_pids and comm and comm not in SHELLS and ppid not in out:
+                out[ppid] = comm
+        return out
 
     def branch(self, workdir, path):
         script = os.path.join(self.repo_dir, "scripts", "pane-branch.sh")

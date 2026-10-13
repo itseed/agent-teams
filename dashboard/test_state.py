@@ -148,6 +148,74 @@ class FakeTmux:
         return self._branches.get(workdir or path)
 
 
+class ScriptedAdapter(state.TmuxAdapter):
+    """TmuxAdapter whose subprocess calls return canned output, mimicking tmux 3.6a."""
+
+    def __init__(self, outputs):
+        super().__init__("/repo")
+        self.outputs = outputs  # (argv0, argv1) → stdout | None
+        self.calls = []
+
+    def _run(self, args):
+        self.calls.append(args)
+        return self.outputs.get((args[0], args[1]))
+
+
+class TmuxAdapterTest(unittest.TestCase):
+    # Real dev-team: claude runs inside the shell's process group, so tmux reports zsh for live panes.
+    LISTING = ("%14\tzsh\t/repo/agent-teams\t\tLead\t100\n"
+               "%15\tzsh\t/tmp/agent-frontend\t/repo/web\tFrontend\t200\n"
+               "%17\tzsh\t/tmp/agent-backend\t\tBackend\t300\n"
+               "%18\t-zsh\t/tmp/agent-mobile\t\tMobile\t400\n")
+
+    PS = ("    1 /sbin/launchd\n"
+          "  200 /opt/homebrew/bin/claude\n"
+          "  300 claude\n"
+          "  400 -zsh\n"
+          "  999 node\n")
+
+    def adapter(self, ps=PS):
+        return ScriptedAdapter({
+            ("tmux", "display-message"): "1791863657\n",
+            ("tmux", "list-panes"): self.LISTING,
+            ("ps", "-A"): ps,
+        })
+
+    def test_session_target_has_trailing_colon(self):
+        # tmux 3.6a: display-message -t =dev-team prints "" (rc 0); =dev-team: resolves the session
+        a = self.adapter()
+        a.session("dev-team")
+        targets = [c[c.index("-t") + 1] for c in a.calls if c[0] == "tmux"]
+        self.assertEqual(targets, ["=dev-team:", "=dev-team:"])
+
+    def test_session_parses_created_and_panes(self):
+        s = self.adapter().session("dev-team")
+        self.assertEqual(s["created"], 1791863657)
+        self.assertEqual(s["panes"]["%15"]["workdir"], "/repo/web")
+        self.assertEqual(s["panes"]["%15"]["role"], "Frontend")
+
+    def test_shell_pane_with_claude_child_is_alive(self):
+        panes = self.adapter().session("dev-team")["panes"]
+        self.assertEqual(panes["%15"]["cmd"], "claude")
+        self.assertEqual(panes["%17"]["cmd"], "claude")
+        self.assertTrue(state._pane_alive(panes["%15"]))
+        self.assertTrue(state._pane_alive(panes["%17"]))
+
+    def test_shell_pane_without_child_or_only_shell_child_is_offline(self):
+        panes = self.adapter().session("dev-team")["panes"]
+        self.assertFalse(state._pane_alive(panes["%14"]))  # no child
+        self.assertFalse(state._pane_alive(panes["%18"]))  # child is a nested shell
+
+    def test_no_children_at_all(self):
+        panes = self.adapter(ps=None).session("dev-team")["panes"]
+        self.assertTrue(all(not state._pane_alive(p) for p in panes.values()))
+
+    def test_empty_created_means_not_running(self):
+        a = self.adapter()
+        a.outputs[("tmux", "display-message")] = "\n"
+        self.assertIsNone(a.session("dev-team"))
+
+
 class BuildStateTest(unittest.TestCase):
     CREATED = 1_000_000
 
