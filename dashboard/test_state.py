@@ -275,6 +275,18 @@ class BuildStateTest(unittest.TestCase):
         self.assertEqual((mobile["status"], mobile["spawned"], mobile["pane"]), ("absent", False, None))
         self.assertEqual((lead["status"], lead["pane"], lead["alive"]), ("working", "%0", True))
 
+    def test_lead_follows_team_and_shows_stage(self):
+        # backend is working in TEAM_STATE → Lead is coordinating; its task is the pipeline stage
+        lead = self.agent(self.build(FakeTmux(self.session())), "lead")
+        self.assertEqual((lead["status"], lead["task"]), ("working", "qa — login"))
+
+    def test_lead_idle_when_team_idle(self):
+        # badge and task must agree: no active role → Lead "idle" with no task (not "working" + no task)
+        with open(self.state_file, "w") as f:
+            f.write(TEAM_STATE.replace("| working |", "| idle |"))
+        lead = self.agent(self.build(FakeTmux(self.session())), "lead")
+        self.assertEqual((lead["status"], lead["task"], lead["alive"]), ("idle", None, True))
+
     def test_stale_status_file_ignored(self):
         self.write_status("qa", "status: blocked\ntask: old\nblocker: old\n", self.CREATED - 5)
         st = self.build(FakeTmux(self.session()))

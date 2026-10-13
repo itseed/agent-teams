@@ -237,6 +237,13 @@ def build_state(state_file, status_dir, session, tmux, project=None):
             a["branch"] = tmux.branch(pane.get("workdir"), pane.get("path"))
         agents.append(a)
 
+    # Lead has no status file: it is busy while any role works, is blocked, or waits for verify —
+    # then its task is the pipeline stage. Otherwise idle with no task (badge and task must agree).
+    if lead_alive and any(a["status"] in ("working", "blocked", "done") for a in agents[1:]):
+        agents[0]["task"] = ts["stage"] if ts else None
+    elif lead_alive:
+        agents[0]["status"] = "idle"
+
     return {
         "session": {"name": session, "running": sess is not None, "created": created},
         "project": (ts["project"] if ts else None) or project,

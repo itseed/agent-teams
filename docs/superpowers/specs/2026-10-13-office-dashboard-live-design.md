@@ -75,7 +75,7 @@ Python: stdlib only, รองรับ python3 ≥ 3.8 (ไม่มี depende
 
 - `agents` เรียงลำดับคงที่: `lead`, frontend, backend, mobile, devops, designer, architect, qa, reviewer (ครบ 9 เสมอ — role ที่ไม่ได้ spawn มี `status: "absent"`)
 - `status` ∈ `working | idle | done | blocked | offline | absent`
-- `lead`: pane = `dev-team:0.0`; status = `offline` ถ้า pane ตาย ไม่งั้น `working` (Lead ไม่มี status file); task = `null`
+- `lead`: pane = `dev-team:0.0`; status = `offline` ถ้า pane ตาย; ไม่งั้น `working` เมื่อมี role ใด working/blocked/done (task = pipeline stage) หรือ `idle` (task = `null`) — Lead ไม่มี status file
 - `project`: ค่าใต้ `## Active Project`; ถ้าเป็น placeholder ที่ขึ้นต้นด้วย `[` → ใช้ `--project` ที่ `start-team.sh` ส่งให้ server (project ที่ใช้เริ่มทีม) → ไม่มีทั้งคู่ = `null`
 - `recent`: บรรทัดที่ไม่ว่างใต้ `## Recently Completed` (ตัด `- ` นำหน้า); placeholder `(ยังไม่มี)` → `[]`
 - `evidence`: เนื้อหาหลัง `## Verification evidence` ใน status file ตัดไม่เกิน 600 ตัวอักษร
