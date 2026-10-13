@@ -73,7 +73,7 @@ button{font:inherit;color:inherit}
 /* side */
 #side{position:absolute;top:12px;right:16px;bottom:16px;width:310px;display:flex;flex-direction:column;gap:10px;pointer-events:none}
 #side>*{pointer-events:auto}
-#panel{padding:14px;overflow:auto;flex:0 1 auto;min-height:0;max-height:62%}
+#panel{padding:14px;overflow:auto;flex:0 1 auto;min-height:0}
 .ph{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
 .ph h2{font-size:16px;font-weight:600;margin:0;line-height:1.3}
 .ph p{margin:2px 0 0;font-size:12px;color:var(--muted)}
@@ -102,7 +102,8 @@ pre.ev{margin:0;padding:10px;border-radius:10px;background:var(--panel-solid);bo
   max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
 .empty{font-size:12px;color:var(--muted);margin:0 0 8px}
 .err{font-size:12px;color:var(--warn);margin:0 0 8px}
-#feed{padding:12px 14px;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+/* fixed height, pinned to the bottom: selecting an agent or new events must not resize it */
+#feed{padding:12px 14px;flex:0 0 auto;height:clamp(180px,34vh,300px);margin-top:auto;min-height:0;display:flex;flex-direction:column}
 #feed h3{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:0 0 8px}
 #feed ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px;overflow:auto;min-height:0}
 #feed li{display:grid;grid-template-columns:44px 1fr;gap:6px;font-size:12px;line-height:1.45;animation:slide .35s ease-out}
