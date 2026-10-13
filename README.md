@@ -387,6 +387,11 @@ cd ~/agent-teams
 # เริ่ม session สำหรับ project ที่ระบุ
 ./start-team.sh pms
 
+# script จะถามว่าเปิด Office Floor dashboard ด้วยไหม [y/N] — ข้ามคำถามได้ด้วย flag
+./start-team.sh --dashboard       # เปิดเลย
+./start-team.sh --no-dashboard    # ไม่เปิด ไม่ถาม
+DASHBOARD_PORT=4781 ./start-team.sh --dashboard   # เปลี่ยน port (default 4780)
+
 # จบ session (ถาม confirm)
 ./stop-team.sh
 
@@ -395,6 +400,17 @@ cd ~/agent-teams
 ```
 
 หลัง `start-team.sh` รัน Lead pane จะได้รับ context อัตโนมัติว่า agents พร้อมแล้ว pane ไหน project อะไร — สั่งงานได้เลยโดยไม่ต้องอธิบาย session state ทุกครั้ง
+
+#### Office Floor dashboard (v1)
+
+ออฟฟิศ 3D ที่แสดงสถานะจริงของทีม `dev-team` — ชื่อ project, เวลาที่เปิดทีมมา, ใคร working / idle / done / blocked / offline,
+task พร้อมเวลาที่ใช้กับงานนั้น, pipeline stage และ feed เหตุการณ์ (อัปเดตทุก 2 วินาที, read-only)
+
+- ตอบ `y` ตอน `start-team.sh` → รัน `dashboard/server.py` เบื้องหลังที่ `http://127.0.0.1:4780/` แล้วเปิด browser
+  (log: `/tmp/agent-teams-dashboard.log`, pid: `/tmp/agent-teams-dashboard.pid`); `stop-team.sh` ปิด server ให้
+- ข้อมูลมาจาก `.team-state.md` + `/tmp/agent-status/<role>.md` + `tmux list-panes` — ไม่มี endpoint ที่สั่งงาน agent
+- ต้องมี `python3` (stdlib อย่างเดียว) ถ้าไม่มี script จะเตือนแล้วเริ่มทีมต่อตามปกติ
+- รันเองได้: `python3 dashboard/server.py --port 4780` · test: `python3 -m unittest dashboard/test_state.py`
 
 > **ปิด terminal ไปโดยไม่ได้ตั้งใจ?** รัน `./start-team.sh` อีกครั้ง — script จะถามให้ resume session เดิม agent ที่ทำงานค้างอยู่จะยังอยู่ครบ
 

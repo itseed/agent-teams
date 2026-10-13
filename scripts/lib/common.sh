@@ -185,3 +185,87 @@ resolve_session() {
     echo "dev-team"
   fi
 }
+
+# ask_dashboard <mode> — ตัดสินว่าจะเปิด dashboard ไหม → echo "yes"/"no"
+# mode: "yes"/"no" (จาก --dashboard/--no-dashboard) ข้ามคำถาม; "" = ถาม (default No)
+# stdin ไม่ใช่ terminal (เช่นรันจาก script อื่น) → "no" โดยไม่ถาม
+ask_dashboard() {
+  local mode="$1" ans
+  if [[ -n "$mode" ]]; then echo "$mode"; return; fi
+  if [[ ! -t 0 ]]; then echo "no"; return; fi
+  printf "เปิดหน้าเว็บ Office Floor dashboard ด้วยไหม? [y/N] " >&2
+  read -r ans || ans=""
+  if [[ "$ans" == "y" || "$ans" == "Y" ]]; then echo "yes"; else echo "no"; fi
+}
+
+DASHBOARD_PID_FILE="/tmp/agent-teams-dashboard.pid"
+DASHBOARD_LOG="/tmp/agent-teams-dashboard.log"
+
+# _dashboard_url — URL ของ dashboard server (port จาก DASHBOARD_PORT, default 4780)
+_dashboard_url() { echo "http://127.0.0.1:${DASHBOARD_PORT:-4780}/"; }
+
+# _dashboard_up — 0 ถ้า /api/state ตอบ
+_dashboard_up() {
+  python3 -c 'import sys,urllib.request; urllib.request.urlopen(sys.argv[1], timeout=1)' \
+    "$(_dashboard_url)api/state" >/dev/null 2>&1
+}
+
+# _open_url <url> — เปิด browser (macOS / WSL / Linux); DASHBOARD_NO_BROWSER=1 = ข้าม (ใช้ตอน test)
+_open_url() {
+  [[ "${DASHBOARD_NO_BROWSER:-0}" == "1" ]] && return 0
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then
+    open "$1"
+  elif command -v wslview >/dev/null 2>&1; then
+    wslview "$1"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$1" >/dev/null 2>&1 &
+  else
+    echo "⚠️  ไม่พบคำสั่งเปิด browser — เปิดเองที่: $1" >&2
+  fi
+}
+
+# start_dashboard [project] — (re)start dashboard server (dashboard/server.py) เบื้องหลังแล้วเปิด browser
+# มี server เดิมจาก pid file → ปิดก่อนแล้วเริ่มใหม่ (project อาจเปลี่ยนจากรอบก่อน)
+# project = ชื่อที่แสดงจนกว่า Lead จะ set Active Project ใน .team-state.md
+# ทุก failure แค่เตือน (return 0 เสมอ — ไม่ทำให้ start-team ล้ม)
+start_dashboard() {
+  local project="${1:-}" url pid i
+  url=$(_dashboard_url)
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "⚠️  ไม่พบ python3 — ข้ามการเปิด dashboard" >&2
+    return 0
+  fi
+
+  stop_dashboard >/dev/null
+  for i in 1 2 3 4; do _dashboard_up || break; sleep 0.25; done   # รอ port ว่างหลังปิดตัวเดิม
+  nohup python3 "$AGENT_TEAMS_DIR/dashboard/server.py" --port "${DASHBOARD_PORT:-4780}" \
+    ${project:+--project "$project"} >"$DASHBOARD_LOG" 2>&1 </dev/null &
+  pid=$!
+  echo "$pid" > "$DASHBOARD_PID_FILE"
+  for i in 1 2 3 4 5 6; do
+    _dashboard_up && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  if ! _dashboard_up || ! kill -0 "$pid" 2>/dev/null; then
+    echo "⚠️  dashboard server เริ่มไม่สำเร็จ — ดู $DASHBOARD_LOG" >&2
+    kill "$pid" 2>/dev/null || true
+    rm -f "$DASHBOARD_PID_FILE"
+    return 0
+  fi
+  echo "→ dashboard server เริ่มแล้ว (pid $pid)"
+  _open_url "$url"
+  echo "→ dashboard: $url"
+}
+
+# stop_dashboard — ปิด dashboard server จาก pid file (ไม่มี/ตายแล้ว → เงียบ)
+stop_dashboard() {
+  local pid
+  pid=$(cat "$DASHBOARD_PID_FILE" 2>/dev/null || true)
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    echo "  ✓ stopped dashboard server (pid $pid)"
+  fi
+  rm -f "$DASHBOARD_PID_FILE"
+  return 0
+}

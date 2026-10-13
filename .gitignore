@@ -10,3 +10,4 @@ docs/superpowers/*
 .team-state.md
 .mcp.json
 .DS_Store
+__pycache__/

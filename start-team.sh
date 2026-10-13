@@ -5,6 +5,7 @@
 #   ./start-team.sh                              # project จาก "active" + roles จาก field "roles" (หรือครบ 8)
 #   ./start-team.sh pms                          # ใช้ project ชื่อ "pms"
 #   ./start-team.sh pms --roles frontend,qa      # spawn เฉพาะ role ที่ระบุ
+#   ./start-team.sh --dashboard | --no-dashboard # เปิด/ไม่เปิด Office Floor dashboard (ไม่ระบุ = ถาม)
 #   ./start-team.sh --help                       # แสดง help
 
 set -euo pipefail
@@ -23,11 +24,12 @@ PROJECTS_JSON="$SCRIPT_DIR/projects.json"
 # ──────────────────────────────────────────────────────────────
 PROJECT_ARG=""
 ROLES_ARG=""
+DASHBOARD_ARG=""   # yes/no จาก flag; ว่าง = ถามผู้ใช้
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
       cat <<EOF
-Usage: $(basename "$0") [PROJECT_NAME] [--roles ROLE1,ROLE2,...]
+Usage: $(basename "$0") [PROJECT_NAME] [--roles ROLE1,ROLE2,...] [--dashboard|--no-dashboard]
 
 Spawn (or resume) tmux session "$SESSION" with Lead + agent panes.
 If session already exists, prompts to resume — preserving all agent state.
@@ -35,6 +37,8 @@ If session already exists, prompts to resume — preserving all agent state.
   PROJECT_NAME   ชื่อ project ใน projects.json (ถ้าไม่ระบุใช้ field "active")
   --roles        เลือก role ที่จะ spawn (comma-separated) — ถ้าไม่ระบุใช้
                  field "roles" ของ project ใน projects.json; ถ้าไม่มีทั้งคู่ = ครบ 8
+  --dashboard    เปิดหน้าเว็บ dashboard/office-floor.html โดยไม่ถาม
+  --no-dashboard ไม่เปิด dashboard และไม่ถาม (ไม่ระบุทั้งคู่ = ถาม [y/N])
 
 Roles: ${ALL_ROLES[*]}
 
@@ -55,6 +59,12 @@ EOF
       ;;
     --roles=*)
       ROLES_ARG="${1#--roles=}"
+      ;;
+    --dashboard)
+      DASHBOARD_ARG="yes"
+      ;;
+    --no-dashboard)
+      DASHBOARD_ARG="no"
       ;;
     -*)
       echo "Unknown option: $1 (run with --help)" >&2
@@ -127,6 +137,9 @@ fi
 
 LEAD_PATH="$SCRIPT_DIR"
 
+# ถามเรื่อง dashboard ตั้งแต่ต้น (ก่อน tmux attach ซึ่งจะ block terminal)
+OPEN_DASHBOARD=$(ask_dashboard "$DASHBOARD_ARG")
+
 # ──────────────────────────────────────────────────────────────
 # Per-agent temp dirs with CLAUDE.md (role + team protocol + project context)
 # Agents start in /tmp/agent-<role>/ so Claude reads the specialist role before
@@ -147,6 +160,7 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   read -r ans
   if [[ "${ans:-Y}" != "n" && "${ans:-Y}" != "N" ]]; then
     echo "→ Resuming session '$SESSION'..."
+    [[ "$OPEN_DASHBOARD" == "yes" ]] && start_dashboard "$PROJECT"
     if [[ -z "${TMUX:-}" ]]; then
       tmux attach-session -t "$SESSION"
     else
@@ -411,6 +425,8 @@ echo ""
 echo "(numeric index 0.N ไม่เสถียร — RTK เลื่อน +1; ใช้ stable %ID จาก .team-state.md เสมอ)"
 echo "(เพิ่ม role ภายหลัง: ./scripts/add-role.sh <role>)"
 echo ""
+
+[[ "$OPEN_DASHBOARD" == "yes" ]] && start_dashboard "$PROJECT"
 
 # Attach (skip if already in tmux)
 if [[ -z "${TMUX:-}" ]]; then
