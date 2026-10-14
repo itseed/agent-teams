@@ -12,16 +12,18 @@
 #
 # 1. lock   — /usr/bin/lockf on $HEAVY_LOCK; the kernel releases it when the process dies
 #             (never mkdir-lock or delete the lock file). Nested heavy.sh calls run straight through.
-# 2. gate   — wait until load avg (1 min) < HEAVY_MAX_LOAD and free swap >= HEAVY_MIN_SWAP_FREE_PCT %,
-#             at most HEAVY_GATE_MAX_WAIT s — then run anyway with a warning (swap held by other apps
-#             must not stall the team forever)
+# 2. gate   — wait until load avg (1 min) < HEAVY_MAX_LOAD and memory is not under pressure: macOS
+#             kern.memorystatus_level (system-wide memory free %) >= HEAVY_MIN_MEM_FREE_PCT, **or** free swap
+#             >= HEAVY_MIN_SWAP_FREE_PCT %. Swap alone is a stale signal — pages swapped out hours ago stay there
+#             while RAM is free again, and the gate then waited the full max wait on every job (2026-10-15:
+#             swap free 6% vs memory free 56%). At most HEAVY_GATE_MAX_WAIT s — then run anyway with a warning.
 # 3. run    — `nice`, in its own process group; past the timeout → TERM the whole group, KILL after 10 s,
 #             exit 124 (a hung jest/`wait` can no longer hold the lock for hours)
 #
 # The agent PreToolUse hook (scripts/heavy-guard.sh) blocks heavy commands that skip this wrapper.
 #
 # Env: HEAVY_LOCK (/tmp/agent-teams-heavy.lock) · HEAVY_TIMEOUT_MIN (20) · HEAVY_MAX_LOAD (16)
-#      HEAVY_MIN_SWAP_FREE_PCT (12) · HEAVY_GATE_MAX_WAIT (600) · HEAVY_GATE_POLL (15)
+#      HEAVY_MIN_MEM_FREE_PCT (30) · HEAVY_MIN_SWAP_FREE_PCT (12) · HEAVY_GATE_MAX_WAIT (600) · HEAVY_GATE_POLL (15)
 # Exit: the command's own code · 124 timeout · 2 usage
 
 set -uo pipefail
@@ -31,6 +33,7 @@ HOLDER="${LOCK%.lock}.holder"
 TIMEOUT_MIN="${HEAVY_TIMEOUT_MIN:-20}"
 MAX_LOAD="${HEAVY_MAX_LOAD:-16}"
 MIN_SWAP_FREE_PCT="${HEAVY_MIN_SWAP_FREE_PCT:-12}"
+MIN_MEM_FREE_PCT="${HEAVY_MIN_MEM_FREE_PCT:-30}"
 GATE_MAX_WAIT="${HEAVY_GATE_MAX_WAIT:-600}"
 GATE_POLL="${HEAVY_GATE_POLL:-15}"
 
@@ -45,10 +48,12 @@ swap_free_pct() {
     gsub(/M/, "", t); gsub(/M/, "", f)
     if (t + 0 == 0) print 100; else printf "%d\n", f * 100 / t }'
 }
-machine() { echo "load $(load1) (max $MAX_LOAD) · swap free $(swap_free_pct)% (min $MIN_SWAP_FREE_PCT%)"; }
+# system-wide memory free % as macOS's memory-pressure logic sees it (unknown → 0, i.e. fall back to swap)
+mem_free_pct() { local v; v=$(sysctl -n kern.memorystatus_level 2>/dev/null); [[ "$v" =~ ^[0-9]+$ ]] && echo "$v" || echo 0; }
+machine() { echo "load $(load1) (max $MAX_LOAD) · mem free $(mem_free_pct)% (min $MIN_MEM_FREE_PCT%) · swap free $(swap_free_pct)% (min $MIN_SWAP_FREE_PCT%)"; }
 gate_ok() {
   awk -v l="$(load1)" -v m="$MAX_LOAD" 'BEGIN { exit !(l + 0 < m + 0) }' && \
-    [[ "$(swap_free_pct)" -ge "$MIN_SWAP_FREE_PCT" ]]
+    { [[ "$(mem_free_pct)" -ge "$MIN_MEM_FREE_PCT" ]] || [[ "$(swap_free_pct)" -ge "$MIN_SWAP_FREE_PCT" ]]; }
 }
 
 if [[ "${1:-}" == "status" ]]; then
