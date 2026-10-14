@@ -109,25 +109,30 @@ pid=$!
 
 # shellcheck disable=SC2329  # invoked via trap
 cleanup() {
-  [[ -n "${wd:-}" ]] && { kill "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null; }
+  [[ -n "${wd:-}" ]] && kill "$wd" 2>/dev/null   # its TERM trap also kills its sleep
   kill -TERM -"$pid" 2>/dev/null
   rm -f "$HOLDER"
 }
 trap 'cleanup; exit 130' INT TERM HUP
 
 # watchdog: past the timeout → mark, TERM the whole group, KILL it 10 s later (ignored TERM)
+# Its sleeps run in the background with fds on /dev/null and die with the watchdog (TERM trap): an orphaned
+# sleep used to keep the caller's stdout pipe open, so `heavy.sh … | tail` hung for the whole timeout.
 (
-  sleep "${HEAVY_TIMEOUT_SEC:-$((TIMEOUT_MIN * 60))}"   # HEAVY_TIMEOUT_SEC: tests only
+  s=""
+  trap '[[ -n "$s" ]] && kill "$s" 2>/dev/null; exit 0' TERM
+  nap() { sleep "$1" </dev/null >/dev/null 2>&1 & s=$!; wait "$s"; s=""; }
+  nap "${HEAVY_TIMEOUT_SEC:-$((TIMEOUT_MIN * 60))}"   # HEAVY_TIMEOUT_SEC: tests only
   kill -0 "$pid" 2>/dev/null || exit 0
   touch "$HOLDER.timeout"
   log "TIMEOUT ${TIMEOUT_MIN} min — kill process group $pid: $*"
-  kill -TERM -"$pid" 2>/dev/null; sleep 10; kill -KILL -"$pid" 2>/dev/null
+  kill -TERM -"$pid" 2>/dev/null; nap 10; kill -KILL -"$pid" 2>/dev/null
 ) &
 wd=$!
 disown "$wd"   # no "Terminated" job notice when we kill it
 
 wait "$pid"; rc=$?
-kill "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null
+kill "$wd" 2>/dev/null   # its TERM trap also kills its sleep
 if [[ -f "$HOLDER.timeout" ]]; then
   # top process died on TERM but group members may ignore it → KILL them after 10 s
   for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -g "$pid" >/dev/null || break; sleep 1; done

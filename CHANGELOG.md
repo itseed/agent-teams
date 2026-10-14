@@ -2,6 +2,12 @@
 
 ### 2026-10-15
 
+**fix: `heavy.sh … | tail` no longer hangs for 20 minutes after the job finishes** — the watchdog `sleep` was orphaned
+(`kill "$wd"` ran before `pkill -P`) and kept the caller's stdout pipe open until the timeout, so a frontend/backend
+lint/test that had already finished looked like it was still "waiting in the queue". Now the watchdog's sleep runs with
+fds on `/dev/null` and dies with the watchdog (TERM trap). Verified: `echo hi | cat` 8 s → 1 s, the timeout path still
+gives rc=124, and no orphan process is left behind.
+
 **งานหนักทีละงานทั้งเครื่อง** — `scripts/heavy.sh <cmd>` แก้ปัญหาเครื่อง 16 GB swap เต็มจนค้างเมื่อหลาย role รัน
 jest/Playwright/build พร้อมกัน: lock เดียวทั้งเครื่อง (`lockf` — kernel คืน lock เมื่อ process ตาย), รอ load < 16
 และ swap ว่าง ≥ 12% (สูงสุด 10 นาที แล้วรันต่อพร้อมเตือน), `nice`, timeout 20 นาทีที่ kill ทั้ง process group
