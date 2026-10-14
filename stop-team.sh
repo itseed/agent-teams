@@ -193,6 +193,12 @@ cleanup_tmp() {
   fi
 }
 
+# เก็บกวาด worktree ของทีมที่ merge แล้ว + ไม่มีไฟล์ค้าง (ที่เหลือแค่รายงาน) — ดู scripts/worktree.sh
+prune_worktrees() {
+  echo "→ worktree prune (ลบเฉพาะที่ merge แล้ว + ไม่มีไฟล์ค้าง)"
+  "$SCRIPT_DIR/scripts/worktree.sh" prune --quiet 2>&1 | sed 's/^/  /' || true
+}
+
 # ──────────────────────────────────────────────────────────────
 # Check session exists
 # ──────────────────────────────────────────────────────────────
@@ -202,6 +208,7 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   echo "Session '$SESSION' ไม่มีอยู่ — เก็บกวาด /tmp runtime files ที่ค้างอยู่"
   [[ "$SESSION" == "dev-team" ]] && stop_dashboard
   cleanup_tmp
+  prune_worktrees
   exit 0
 fi
 
@@ -233,3 +240,4 @@ echo "✓ Session '$SESSION' killed."
 # Cleanup /tmp runtime files
 # ──────────────────────────────────────────────────────────────
 cleanup_tmp
+prune_worktrees

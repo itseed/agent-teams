@@ -1,5 +1,6 @@
 """Tests for dashboard/state.py and dashboard/server.py — run: python3 -m unittest dashboard/test_state.py -v"""
 import os
+import re
 import sys
 import unittest
 
@@ -137,9 +138,13 @@ class DeriveStatusTest(unittest.TestCase):
 
 
 class FakeTmux:
-    def __init__(self, session=None, branches=None):
+    def __init__(self, session=None, branches=None, busy=()):
         self._session = session
         self._branches = branches or {}
+        self._busy = set(busy)
+
+    def busy(self, pane_id):
+        return pane_id in self._busy
 
     def session(self, name):
         return self._session
@@ -159,6 +164,61 @@ class ScriptedAdapter(state.TmuxAdapter):
     def _run(self, args):
         self.calls.append(args)
         return self.outputs.get((args[0], args[1]))
+
+
+class TmuxBusyTest(unittest.TestCase):
+    def test_busy_reads_bottom_of_pane(self):
+        working = "line\n" * 30 + "✻ Thinking… (12s · esc to interrupt)\n\n"
+        self.assertTrue(ScriptedAdapter({("tmux", "capture-pane"): working}).busy("%0"))
+        # an old "esc to interrupt" scrolled above the last 15 lines is not the current turn
+        idle = "✻ (esc to interrupt)\n" + "line\n" * 20 + "❯ \n"
+        self.assertFalse(ScriptedAdapter({("tmux", "capture-pane"): idle}).busy("%0"))
+        self.assertFalse(ScriptedAdapter({}).busy("%0"))  # tmux failure → not busy
+
+    def test_busy_narrow_pane(self):
+        # 79-col pane: footer truncated, spinner no longer says "esc to interrupt"
+        screen = ("✶ Grooving… (1m 58s · ↓ 6.3k tokens)\n❯ \n"
+                  "  ⏵⏵ bypass permissions on · 2 shells · ⧉ agent-teams-guide · esc to interru…\n")
+        self.assertTrue(ScriptedAdapter({("tmux", "capture-pane"): screen}).busy("%0"))
+        spinner_only = "✶ Grooving… (12s · ↓ 1k tokens)\n❯ \n  ⏵⏵ bypass permissions on\n"
+        self.assertTrue(ScriptedAdapter({("tmux", "capture-pane"): spinner_only}).busy("%0"))
+        done = "✻ Sautéed for 20s · done 11:33 AM · 2 shells still running\n❯ \n  ⏵⏵ bypass permissions on\n"
+        self.assertFalse(ScriptedAdapter({("tmux", "capture-pane"): done}).busy("%0"))
+
+
+class PaneBusySyncTest(unittest.TestCase):
+    """state.BUSY_RE and scripts/lib/pane.sh must agree — team-send/dispatch and the dashboard
+    would otherwise disagree on whether an agent is mid-turn."""
+    PANE_SH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "lib", "pane.sh")
+    SCREENS = {
+        "✶ Grooving… (1m 58s · ↓ 6.3k tokens)\n❯ \n  ⏵⏵ bypass permissions on · esc to interru…\n": True,
+        "✶ Grooving… (12s · ↓ 1k tokens)\n❯ \n": True,
+        "✻ Sautéed for 20s · done 11:33 AM\n❯ \n  ⏵⏵ bypass permissions on\n": False,
+        "✻ (esc to interrupt)\n" + "line\n" * 20 + "❯ \n": False,  # scrolled out of the last 15
+    }
+
+    def test_same_pattern_string(self):
+        with open(self.PANE_SH, encoding="utf-8") as f:
+            m = re.search(r"^PANE_BUSY_RE='([^']*)'", f.read(), re.M)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group(1), state.BUSY_RE.pattern)
+
+    def test_bash_pane_busy_matches_python(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            screen = os.path.join(d, "screen")
+            with open(os.path.join(d, "tmux"), "w") as f:
+                f.write(f'#!/bin/sh\ncat "{screen}"\n')
+            os.chmod(os.path.join(d, "tmux"), 0o755)
+            env = dict(os.environ, PATH=d + os.pathsep + os.environ["PATH"])
+            for text, want in self.SCREENS.items():
+                with open(screen, "w", encoding="utf-8") as f:
+                    f.write(text)
+                r = subprocess.run(["bash", "-c", 'set -euo pipefail; source "$1"; pane_busy %0', "_", self.PANE_SH],
+                                   env=env)
+                self.assertEqual(r.returncode == 0, want, text)
+                self.assertEqual(ScriptedAdapter({("tmux", "capture-pane"): text}).busy("%0"), want, text)
 
 
 class TmuxAdapterTest(unittest.TestCase):
@@ -286,6 +346,13 @@ class BuildStateTest(unittest.TestCase):
             f.write(TEAM_STATE.replace("| working |", "| idle |"))
         lead = self.agent(self.build(FakeTmux(self.session())), "lead")
         self.assertEqual((lead["status"], lead["task"], lead["alive"]), ("idle", None, True))
+
+    def test_lead_working_when_own_pane_busy(self):
+        # every role idle but Lead is mid-turn (planning) → "working", not "idle"
+        with open(self.state_file, "w") as f:
+            f.write(TEAM_STATE.replace("| working |", "| idle |"))
+        lead = self.agent(self.build(FakeTmux(self.session(), busy={"%0"})), "lead")
+        self.assertEqual(lead["status"], "working")
 
     def test_stale_status_file_ignored(self):
         self.write_status("qa", "status: blocked\ntask: old\nblocker: old\n", self.CREATED - 5)

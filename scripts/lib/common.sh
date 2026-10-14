@@ -92,20 +92,27 @@ provision_agent_dir() {
 
   mkdir -p "$dir/.claude" /tmp/agent-status
   : > "/tmp/agent-status/${role}.md"
+  rm -f "/tmp/agent-status/${role}.key"   # pane สด → งานแรกไม่ต้อง /clear (ดู scripts/dispatch.sh)
 
   # Strip YAML frontmatter (--- ... ---) then write as CLAUDE.md
   awk '/^---$/{found++; next} found==1{next} {print}' "$src" > "$dir/CLAUDE.md"
 
-  # Shared team protocol (ack / status file / report-back / peer messages) — ROLE + TEAM_SEND substituted
+  # Shared team protocol (ack / status file / report-back / peer messages) — ROLE + TEAM_SEND + HEAVY substituted
   if [[ -f "$protocol" ]]; then
     printf '\n---\n\n' >> "$dir/CLAUDE.md"
     sed -e "s|{{ROLE}}|${role}|g" -e "s|{{TEAM_SEND}}|${AGENT_TEAMS_DIR}/scripts/team-send.sh|g" \
+      -e "s|{{HEAVY}}|${AGENT_TEAMS_DIR}/scripts/heavy.sh|g" \
       "$protocol" >> "$dir/CLAUDE.md"
   fi
 
   # auto-compact so agents don't hang at 100% context; disable Remote Control so only Lead
   # registers as an RC session (teammates run from /tmp/agent-<role>, not the repo root)
-  echo '{"autoCompactEnabled":true,"disableRemoteControl":true}' > "$dir/.claude/settings.json"
+  # PreToolUse guard: heavy commands (jest/playwright/build/tsc/docker build) must go through heavy.sh
+  # — one at a time machine-wide + timeout (parallel runs froze the 16 GB Mac repeatedly)
+  jq -n --arg guard "$AGENT_TEAMS_DIR/scripts/heavy-guard.py" '{
+    autoCompactEnabled: true, disableRemoteControl: true,
+    hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command", command: $guard, timeout: 10}]}]}
+  }' > "$dir/.claude/settings.json"
 
   local proj_description proj_paths_md
   proj_description=$(jq -r --arg p "$project" '.projects[$p].description // ""' "$projects_json" 2>/dev/null || true)

@@ -478,7 +478,13 @@ agent-teams/
 ├── setup-windows.ps1          # [Beta] Windows setup: WSL2 + Ubuntu + install อัตโนมัติ
 ├── scripts/
 │   ├── lib/common.sh          # shared helpers (roles, labels, model/effort, agent dir provisioning)
+│   ├── lib/pane.sh            # pane_busy — pattern เดียวที่ team-send/dispatch/dashboard ใช้เช็คว่า agent กำลังทำงาน
 │   ├── team-send.sh           # reliable task delivery (paste + submit + verify-landed)
+│   ├── dispatch.sh            # v1: ส่งงานให้ role — /clear ตาม task key + รอ ack + resend ถ้าถูกกลืน
+│   ├── worktree.sh            # create/remove/prune worktree ของทีม (ที่เดียว — agent ห้ามสร้างเอง)
+│   ├── heavy.sh               # รันงานหนัก (test/e2e/build) ทีละงานทั้งเครื่อง + gate load/swap + timeout
+│   ├── heavy-guard.py         # PreToolUse hook: บล็อกงานหนักที่ไม่ผ่าน heavy.sh
+│   ├── show-team-state.sh     # UserPromptSubmit hook: inject .team-state.md (+ เตือนถ้า tmux session ไม่อยู่)
 │   ├── team-state.sh          # atomic updates ของ .team-state.md
 │   ├── add-role.sh            # เพิ่ม role กลาง session (v1)
 │   └── ...                    # restore-*, check-stuck-panes, hooks (cleanup/reap dev servers)

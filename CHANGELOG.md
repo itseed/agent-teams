@@ -1,5 +1,31 @@
 # Changelog
 
+### 2026-10-15
+
+**งานหนักทีละงานทั้งเครื่อง** — `scripts/heavy.sh <cmd>` แก้ปัญหาเครื่อง 16 GB swap เต็มจนค้างเมื่อหลาย role รัน
+jest/Playwright/build พร้อมกัน: lock เดียวทั้งเครื่อง (`lockf` — kernel คืน lock เมื่อ process ตาย), รอ load < 16
+และ swap ว่าง ≥ 12% (สูงสุด 10 นาที แล้วรันต่อพร้อมเตือน), `nice`, timeout 20 นาทีที่ kill ทั้ง process group
+(jest ค้าง / `wait` เปล่าไม่ถือคิวเป็นชั่วโมงอีก) · `heavy.sh status` ดูว่าใครถือคิว ·
+PreToolUse hook `scripts/heavy-guard.py` (ใน agent dir + repo settings) บล็อกคำสั่งหนักที่ไม่ผ่าน wrapper
+รวมถึงที่ซ่อนใน `bash -c` / `lockf` · protocol ข้อ 6 สอน agent — Lead ไม่ต้องใส่กฎ lock ใน prompt แล้ว
+
+**Task key แทนการ /clear ทุกงาน** — `scripts/dispatch.sh <role> <key>` ส่งงาน v1 ในคำสั่งเดียว: ปฏิเสธถ้า agent
+กำลังทำงาน, `/clear` เฉพาะเมื่อ key เปลี่ยน (key = feature ทุก phase หรือ `issue-<N>`) แล้วรอ clear เสร็จจริงก่อนส่ง
+(กัน task ถูกกลืน), set team-state, รอ ack และส่งซ้ำ 1 ครั้ง — รอบแก้หลัง QA/Reviewer FAIL ไม่เสีย context อีก
+
+**Worktree มีเจ้าของ** — `scripts/worktree.sh create|remove|prune|list` สร้างที่ `<repo>-worktrees/<branch>` ที่เดียว;
+prune ลบเฉพาะที่ clean + merge แล้ว (รวม squash) + ไม่มีไฟล์แก้ใน 60 นาที + ไม่มี process ใช้อยู่ — รันตอน
+SessionStart และ `stop-team.sh` · protocol ข้อ 5: agent ห้าม checkout/stash/push/สร้าง worktree เอง ·
+ไม่มี branch protection (GitHub billing) → PR ต้องแนบ QA PASS + Reviewer PASS ก่อน Lead merge
+
+**แก้การตรวจว่า agent กำลังทำงาน** — Claude Code แสดง "esc to interrupt" แค่ที่ footer ซึ่ง pane แคบตัดเหลือ
+`esc to interru…` ทำให้ `team-send.sh` (อาจส่ง Esc ขัดจังหวะ agent), `dispatch.sh` และ dashboard เห็นทุก pane ว่าง —
+pattern ใหม่จับ spinner `… (1m 58s` ด้วย รวมไว้ที่ `scripts/lib/pane.sh` (test บังคับให้ dashboard ตรงกัน) ·
+dashboard: Lead เป็น `working` เมื่อจอ Lead กำลังทำงาน แม้ทุก role ว่าง
+
+**Hook ไม่พึ่ง cwd** — hook ทุกตัวใช้ `$CLAUDE_PROJECT_DIR` (เดิม `cd` เข้า sub-folder แล้วไม่เห็นสถานะทีม);
+`scripts/show-team-state.sh` ขึ้น `[STALE]` เมื่อ tmux session ของทีมไม่อยู่ กัน Lead ส่งงานเข้า pane ที่ไม่มีแล้ว
+
 ### 2026-10-11
 
 **Windows (WSL2)** — เพิ่ม `.gitattributes` บังคับ LF ให้ `*.sh`/`*.json`/`*.md` (กัน `$'\r': command not found`);

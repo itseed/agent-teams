@@ -63,7 +63,9 @@ pending() {
 }
 
 # busy = agent mid-turn; never send Esc then (it would interrupt the turn)
-busy()   { capture | tail -15 | grep -qi "esc to interrupt"; }
+# shellcheck source=lib/pane.sh
+source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/lib/pane.sh"
+busy()   { pane_busy "$PANE"; }
 queued() { capture | tail -15 | grep -q "Press up to edit queued"; }
 
 # Wait until the pane stops changing (paste ingested), max ~3s

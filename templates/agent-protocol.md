@@ -55,3 +55,31 @@ echo "{{ROLE}} เสร็จแล้ว" | {{TEAM_SEND}} dev-team:0.0
 
 ห้ามใช้ `AskUserQuestion` หรือรอ confirm แบบ menu — มันค้างอยู่ใน pane ของคุณโดย Lead ไม่เห็น
 ถ้าต้องให้ Lead ตัดสินใจ → เขียน status `blocked` + ส่งคำถามเป็นข้อความผ่าน `team-send.sh` แล้วหยุดรอ
+
+### 5. Git — ทำงานเฉพาะ branch/path ที่ Lead ระบุ
+
+- ทำงานใน repo path และ branch ที่ระบุใน task/plan เท่านั้น — เช็ค `git branch --show-current` ก่อนแก้ไฟล์แรก
+  ไม่ตรง → `blocked` ถาม Lead (ห้ามสลับเอง)
+- commit งานของตัวเองบน branch นั้นได้ (`git add <ไฟล์ที่แก้>` ไม่ใช่ `-A`)
+- **ห้าม** `git checkout`/`switch` ไป branch อื่น, `git stash`, `git push`, merge, rebase, ลบ branch —
+  checkout ใช้ร่วมกับ agent อื่น การสลับ branch จะเปลี่ยนไฟล์ใต้มือคนอื่น
+- **ห้ามสร้าง/ลบ git worktree เอง** (รวม skill/tool ที่สร้าง worktree ให้อัตโนมัติ) — ต้องการ checkout แยก →
+  ขอ Lead; Lead สร้างด้วย `scripts/worktree.sh create` และลบเองหลัง merge (worktree ที่ agent สร้างไม่มีใครลบ ค้างเต็มเครื่อง)
+
+### 6. งานหนัก — รันผ่าน `heavy.sh` ทีละงานทั้งเครื่อง
+
+test / e2e / build / typecheck / docker build หลาย role พร้อมกันทำเครื่อง (16 GB) swap เต็มจนค้าง —
+hook บล็อกคำสั่งพวกนี้ถ้าไม่ผ่าน wrapper:
+
+```bash
+{{HEAVY}} npx jest src/<module> --maxWorkers=2
+{{HEAVY}} npx playwright test e2e/<spec>.ts --workers=1
+{{HEAVY}} bash -c 'cd apps/api && npm run build'       # มี cd / && / pipe → ห่อด้วย bash -c
+{{HEAVY}} --timeout 40 <command>                       # default 20 นาที เกินแล้วถูก kill ทั้ง process group
+{{HEAVY}} status                                       # ใครถือคิว ถือมานานเท่าไร load/swap ตอนนี้
+```
+
+- รอคิวเป็นเรื่องปกติ — ห้ามเลี่ยง hook, ห้ามลบ lock file, ห้ามรันงานหนักเป็น background ทิ้งไว้
+- เลือกรันเฉพาะ test/suite ที่เกี่ยวกับงาน ไม่รันทั้งชุด · jest `--maxWorkers=2` · Playwright `--workers=1` · jest e2e `--forceExit`
+- script ที่เปิด server เป็น background → `wait <pid>` เฉพาะตัว ห้าม `wait` เปล่า · ปิด dev server/browser ของตัวเองเมื่อเสร็จ
+- โดน timeout (exit 124) → อย่ารันซ้ำทั้งก้อน หาสาเหตุ (open handle, server ไม่ปิด) หรือแบ่ง suite แล้ว report ใน status file

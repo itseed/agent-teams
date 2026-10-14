@@ -56,9 +56,12 @@ layout เพี้ยน → `./scripts/restore-layout.sh`)
 1. อ่าน `projects.json` → active project (field `active` หรือชื่อที่ผู้ใช้พูดถึง) + paths
 2. เลือก role ที่ต้องใช้ — เช็คว่ามี pane ในตาราง `.team-state.md` ถ้าไม่มี → `./scripts/add-role.sh <role>` แล้วรอ pane พร้อม
 3. ถ้า repo ของงานต่างจาก default ของ role → `./scripts/set-pane-workdir.sh <role> <repo-path>` (border แสดง `⎇ <branch>`)
-4. **task ใหม่ที่ไม่ต่อเนื่องกับงานเดิมของ role นั้น → เคลียร์ context ก่อน**:
-   v1 `echo "/clear" | ./scripts/team-send.sh <%ID>` · v2 `./scripts/archive-role-log.sh <role>`
-   (ปลอดภัยเพราะ state จริงอยู่ใน docs/, status file, git — ก่อน clear ให้แน่ใจว่าสิ่งสำคัญถูกเขียนลงไฟล์แล้ว)
+4. **clear context ตัดสินจาก task key ไม่ใช่วิจารณญาณ** — v1 ส่งงานด้วย `./scripts/dispatch.sh <role> <key>` (ดู "v1 — ส่งงานและรับผล")
+   - key = slug ของ feature ใช้ร่วมกันทุก phase (เช่น `km-business-scope` สำหรับ P1/P2/P3) หรือ `issue-<N>` สำหรับงานเดี่ยว
+   - key เดิมกับงานล่าสุดของ role → **ไม่ clear** (รอบแก้หลัง QA/Reviewer FAIL, re-review, phase ถัดไป — agent จำ context เดิมได้)
+   - key ใหม่ → script `/clear` ให้เอง · `--fresh` บังคับ clear (context เพี้ยน) · `--keep` ไม่ clear แม้ key ใหม่
+   - v2 task ใหม่ → `./scripts/archive-role-log.sh <role>`
+   (clear ปลอดภัยเพราะ state จริงอยู่ใน docs/, status file, git — ก่อน clear ให้แน่ใจว่าสิ่งสำคัญถูกเขียนลงไฟล์แล้ว)
 5. งานซับซ้อน/ไม่รู้ scope → ให้ agent อ่านและสรุปก่อน แล้วค่อยส่งงานจริง; งาน architecture → architect ก่อน dev;
    งานเน้นดีไซน์ → designer ทำ spec ก่อน frontend/mobile
 
@@ -108,11 +111,23 @@ role .md wire skill ไว้แล้ว — ใส่ใน prompt ด้ว�
 ```
 
 ```bash
-echo "<prompt>" | ./scripts/team-send.sh <%ID>     # %ID จาก .team-state.md เสมอ — ห้ามใช้ index 0.N
+echo "<prompt>" | ./scripts/dispatch.sh <role> <key> [--task "สรุปงาน"]
 ```
 
-- **Ack**: agent ต้องตอบ `"<role> รับงานแล้ว: ..."` — ไม่มีใน ~10s → เช็ค status file แล้ว capture-pane;
-  prompt ค้างใน input box ("Press up to edit queued messages") → ส่ง Enter (หรือ Escape แล้ว Enter)
+`dispatch.sh` ทำให้ครบในคำสั่งเดียว: หา `%ID` จาก `.team-state.md` → ปฏิเสธถ้า agent กำลังทำงาน (ห้ามสั่งงานทับ)
+→ `/clear` เมื่อ key เปลี่ยนแล้วรอให้ clear เสร็จจริง (กัน task ถูกกลืน) → ส่ง prompt → `team-state.sh set <role> working`
+→ รอ ack (status file ถูกเขียนใหม่) ไม่มา + pane ว่าง → ส่งซ้ำ 1 ครั้ง
+exit 0 = รับงานแล้ว · 1 = ส่งไม่ได้ (อ่าน error) · 2 = ส่งแล้วแต่ไม่ ack → capture-pane ดูเอง
+
+- ข้อความที่ไม่ใช่งาน (ตอบคำถาม agent, แจ้งข้อมูลเพิ่ม) → `echo "<msg>" | ./scripts/team-send.sh <%ID>` ตรงๆ
+- **Ack**: agent ตอบ `"<role> รับงานแล้ว: ..."` + เขียน status file — dispatch.sh เช็คให้แล้ว
+- **Worktree**: ต้องการ checkout แยก (QA/Reviewer ตรวจ branch ของ PR ขณะ dev ทำงานต่อ, dev หลายคนคนละ branch ใน repo เดียว)
+  → `./scripts/worktree.sh create <repo> <branch> [--copy-env]` แล้วใส่ path ใน task; agent ห้ามสร้าง/ลบ worktree เอง
+  ที่อื่นนอก `<repo>-worktrees/` (เช่น `/tmp/...`) script ไม่ดูแล — ห้ามสร้างแบบนั้น
+- **งานหนัก** (test/e2e/build/tsc/docker build): agent ต้องรันผ่าน `scripts/heavy.sh` — ทีละงานทั้งเครื่อง,
+  รอ load/swap ลด, timeout 20 นาที; hook ใน agent dir บล็อกคำสั่งที่ไม่ผ่าน (protocol ข้อ 6 บอก agent แล้ว
+  ไม่ต้องใส่กฎ lock ใน task prompt) · agent รอนาน/เครื่องช้า → `./scripts/heavy.sh status` ดูว่าใครถือคิว
+  · ส่ง QA/dev ที่ต้อง test พร้อมกันได้ แต่งานหนักจะต่อคิวกันเอง — e2e ให้ระบุ suite ที่เกี่ยวข้องใน plan
 - **ผลงาน**: agent เขียน `/tmp/agent-status/<role>.md` (status + evidence) แล้วส่ง `"<role> เสร็จแล้ว"`
   agent เงียบนาน → เช็ค status file ก่อน แล้ว `./scripts/check-stuck-panes.sh`
 - ข้อความ `[frontend → backend] ...` คือ CC ของ peer-to-peer — รับรู้ ไม่ต้อง relay
@@ -142,6 +157,10 @@ echo "<prompt>" | ./scripts/team-send.sh <%ID>     # %ID จาก .team-state.m
 
 - **QA → Reviewer เป็น sequential เสมอ**: งานเสร็จ → QA → (PASS) → Reviewer → (approve) → merge
   QA FAIL → ส่งกลับ agent ที่รับผิดชอบ ไม่ส่ง Reviewer; agent ไม่ merge/push เอง
+- **ไม่มี branch protection (GitHub billing)** — gate ก่อน merge อยู่ที่ Lead: PR description ต้องแนบ
+  verdict QA PASS + Reviewer PASS (สรุป + commit ที่ตรวจ) ทุกครั้ง ไม่มีครบ → ห้าม merge
+- **หลัง merge** → `./scripts/worktree.sh remove <path>` ทุก worktree ของงานนั้น (prune อัตโนมัติตอน SessionStart/stop-team
+  ลบได้เฉพาะตัวที่ merge แล้ว + ไม่มีไฟล์ค้าง — อย่าพึ่ง)
 - **Lead ห้ามแก้โค้ด/ไฟล์ของ project เอง** แม้ดูง่าย — อ่านเพื่อเขียน plan ได้, แก้ต้อง delegate
   (ข้อยกเว้น: เขียน `docs/plan/*`, อัปเดต state ผ่าน scripts, และ commit/push งานที่ agent ทำเสร็จแล้ว)
 - **Commit**: ตรวจ `git status` ก่อน, `git add <specific files>` (ไม่ใช่ `-A`), ไฟล์ไม่เกี่ยวข้องแยก commit

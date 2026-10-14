@@ -93,6 +93,8 @@ def parse_status_file(text):
 
 
 SHELLS = {"zsh", "bash", "sh", "fish", "dash"}
+# same string as PANE_BUSY_RE in scripts/lib/pane.sh (test_state.py enforces it)
+BUSY_RE = re.compile(r"esc to interr|… \(([0-9]+m )?[0-9]+s", re.IGNORECASE)
 
 
 def _pane_alive(pane):
@@ -171,6 +173,11 @@ class TmuxAdapter:
                 out[ppid] = comm
         return out
 
+    def busy(self, pane_id):
+        """Claude is mid-turn in this pane — Python twin of pane_busy in scripts/lib/pane.sh."""
+        out = self._run(["tmux", "capture-pane", "-p", "-t", pane_id]) or ""
+        return BUSY_RE.search("\n".join(out.rstrip("\n").splitlines()[-15:])) is not None
+
     def branch(self, workdir, path):
         script = os.path.join(self.repo_dir, "scripts", "pane-branch.sh")
         out = self._run(["bash", script, workdir or "", path or ""])
@@ -237,9 +244,11 @@ def build_state(state_file, status_dir, session, tmux, project=None):
             a["branch"] = tmux.branch(pane.get("workdir"), pane.get("path"))
         agents.append(a)
 
-    # Lead has no status file: it is busy while any role works, is blocked, or waits for verify —
-    # then its task is the pipeline stage. Otherwise idle with no task (badge and task must agree).
-    if lead_alive and any(a["status"] in ("working", "blocked", "done") for a in agents[1:]):
+    # Lead has no status file: it is busy while its own pane is mid-turn (planning with every role
+    # idle) or any role works, is blocked, or waits for verify — then its task is the pipeline stage.
+    # Otherwise idle with no task (badge and task must agree).
+    if lead_alive and (tmux.busy(lead_id)
+                       or any(a["status"] in ("working", "blocked", "done") for a in agents[1:])):
         agents[0]["task"] = ts["stage"] if ts else None
     elif lead_alive:
         agents[0]["status"] = "idle"
