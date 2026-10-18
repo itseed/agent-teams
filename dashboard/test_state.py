@@ -386,17 +386,17 @@ class BuildStateTest(unittest.TestCase):
     def test_project_fallback_when_placeholder(self):
         with open(self.state_file, "w") as f:
             f.write(TEAM_STATE.replace("\npms\n", "\n[Lead ต้อง set หลังอ่าน projects.json]\n"))
-        st = state.build_state(self.state_file, self.status_dir, "dev-team", FakeTmux(self.session()), project="kaotajai")
-        self.assertEqual(st["project"], "kaotajai")
+        st = state.build_state(self.state_file, self.status_dir, "dev-team", FakeTmux(self.session()), project="myapp")
+        self.assertEqual(st["project"], "myapp")
 
     def test_team_state_project_wins_over_fallback(self):
-        st = state.build_state(self.state_file, self.status_dir, "dev-team", FakeTmux(self.session()), project="kaotajai")
+        st = state.build_state(self.state_file, self.status_dir, "dev-team", FakeTmux(self.session()), project="myapp")
         self.assertEqual(st["project"], "pms")
 
     def test_project_fallback_without_state_file(self):
         os.remove(self.state_file)
-        st = state.build_state(self.state_file, self.status_dir, "dev-team", FakeTmux(None), project="kaotajai")
-        self.assertEqual(st["project"], "kaotajai")
+        st = state.build_state(self.state_file, self.status_dir, "dev-team", FakeTmux(None), project="myapp")
+        self.assertEqual(st["project"], "myapp")
 
     def test_missing_status_dir(self):
         import shutil
