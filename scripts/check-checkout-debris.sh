@@ -7,9 +7,9 @@
 # checkout) and pile up across sessions — days later they can break another
 # agent's typecheck/build (e.g. a stray e2e spec importing a package that was
 # since removed) with nobody able to tell "debris" from "in-progress work".
-# See: docs incident 2026-09-03 (health-compass-ai-web, 132 debris files,
-# one broke every agent's typecheck) and PR#62 "rescue orphaned e2e specs +
-# planning docs" (an earlier occurrence of the same pattern).
+# Seen in practice: one web repo piled up 132 debris files, one of which broke
+# every agent's typecheck; an earlier occurrence of the same pattern needed a
+# whole PR just to rescue orphaned e2e specs and planning docs.
 #
 # This script only DETECTS and REPORTS — it never deletes or moves anything.
 # Age alone cannot tell debris from real unfinished work (PR#62 found 3/8

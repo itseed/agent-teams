@@ -8,7 +8,7 @@
 #   worktree.sh list   [project|repo-path]
 #
 # ตำแหน่งมาตรฐาน: <parent ของ repo>/<ชื่อ repo>-worktrees/<branch โดยแทน / ด้วย ->
-#   เช่น ~/project/fuse-platform/fuse-api-worktrees/feat-km-p2
+#   เช่น ~/project/myapp/myapp-api-worktrees/feat-login
 #   เฉพาะ worktree ใต้ตำแหน่งนี้ที่ script ถือว่าเป็น "ของทีม" (managed) — ที่อื่นแค่รายงาน ไม่แตะ
 #
 # create  fetch origin ก่อน แล้วสร้างจาก branch เดิม (ถ้ามี) หรือแตก branch ใหม่จาก --base
