@@ -11,3 +11,4 @@ docs/superpowers/*
 .mcp.json
 .DS_Store
 __pycache__/
+.vscode/
